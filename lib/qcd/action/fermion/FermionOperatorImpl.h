@@ -538,6 +538,14 @@ class GparityWilsonImpl : public ConjugateGaugeImpl<GaugeImplTypes<S, Nrepresent
    
  }
 
+ inline uint64_t GparityTwistSpinor(const uint64_t base_ptr, int flav, const int point, const int ent, StencilImpl &st){
+   uint64_t foff = st._entries[ent]._is_local ? sizeof(SiteSpinor)/2 : sizeof(SiteHalfSpinor)/2;
+   int mmu = point % 4;	
+   if(st._entries[ent]._around_the_world && Params.twists[mmu]) flav = (flav + 1)%2; //implement G-parity BC
+   return base_ptr + flav * foff;
+ }
+
+
  inline void DoubleStore(GridBase *GaugeGrid,DoubledGaugeField &Uds,const GaugeField &Umu)
  {
    conformable(Uds._grid,GaugeGrid);
