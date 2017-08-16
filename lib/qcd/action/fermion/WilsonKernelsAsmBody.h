@@ -34,13 +34,23 @@
 #define DIR7_RECON   TP_RECON_ACCUM
 #endif
 
+
+#ifdef GPARITY
+#define MULT_2SPIN_DIR_PF_USE(A,p,FLAV) MULT_2SPIN_PF(&U._odata[sU](FLAV)(A),p)
+#define SPINOR_OFF(PTR,POINT,ENT,FLAV) PTR = GparityTwistSpinor(PTR, FLAV, POINT, ENT, st)
+#else
+#define MULT_2SPIN_DIR_PF_USE(A,p,FLAV) MULT_2SPIN_DIR_PF(A,p)
+#define SPINOR_OFF(PTR,POINT,ENT,FLAV)
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // Comms then compute kernel
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef INTERIOR_AND_EXTERIOR
 
-#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
-      basep = st.GetPFInfo(nent,plocal); nent++;			\
+#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV)  \
+      basep = st.GetPFInfo(nent,plocal);				\
+      SPINOR_OFF(basep,Dir,nent,FLAV); nent++;				\
       if ( local ) {							\
 	LOAD64(%r10,isigns);						\
 	PROJ(base);							\
@@ -48,17 +58,19 @@
       } else {								\
 	LOAD_CHI(base);							\
       }									\
-      base = st.GetInfo(ptype,local,perm,NxtDir,ent,plocal); ent++;	\
+      base = st.GetInfo(ptype,local,perm,NxtDir,ent,plocal);		\
+      SPINOR_OFF(base,NxtDir,ent,FLAV); ent++;				\
       PREFETCH_CHIMU(base);						\
-      MULT_2SPIN_DIR_PF(Dir,basep);					\
+      MULT_2SPIN_DIR_PF_USE(Dir,basep,FLAV);				\
       LOAD64(%r10,isigns);						\
       RECON;								\
 
-#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
-  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal); ent++;		\
+#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV) \
+  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal);			\
+  SPINOR_OFF(base,Dir,ent,FLAV); ent++;					\
   PF_GAUGE(Xp);								\
   PREFETCH1_CHIMU(base);						\
-  ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON) 
+  ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV) 
 
 #define RESULT(base,basep) SAVE_RESULT(base,basep);
 
@@ -69,27 +81,30 @@
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef INTERIOR
 
-#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
-      basep = st.GetPFInfo(nent,plocal); nent++;			\
+#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV)  \
+      basep = st.GetPFInfo(nent,plocal);                                \
+      SPINOR_OFF(basep, Dir, nent, FLAV); nent++;			\
       if ( local ) {							\
 	LOAD64(%r10,isigns);						\
 	PROJ(base);							\
 	MAYBEPERM(PERMUTE_DIR,perm);					\
       }else if ( st.same_node[Dir] ) {LOAD_CHI(base);}			\
       if ( local || st.same_node[Dir] ) {				\
-	MULT_2SPIN_DIR_PF(Dir,basep);					\
+	MULT_2SPIN_DIR_PF_USE(Dir,basep,FLAV);				\
 	LOAD64(%r10,isigns);						\
 	RECON;								\
       }									\
-      base = st.GetInfo(ptype,local,perm,NxtDir,ent,plocal); ent++;	\
+      base = st.GetInfo(ptype,local,perm,NxtDir,ent,plocal);		\
+      SPINOR_OFF(base,NxtDir,ent,FLAV); ent++;				\
       PREFETCH_CHIMU(base);						\
 
-#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
-  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal); ent++;		\
+#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV)		\
+  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal);			\
+  SPINOR_OFF(base,Dir,ent,FLAV); ent++;					\
   PF_GAUGE(Xp);								\
   PREFETCH1_CHIMU(base);						\
   { ZERO_PSI; }								\
-  ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON) 
+  ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV) 
 
 #define RESULT(base,basep) SAVE_RESULT(base,basep);
 
@@ -100,23 +115,25 @@
 #ifdef EXTERIOR
 
 
-#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
-  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal); ent++;		\
+#define ASM_LEG(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV)	\
+  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal);			\
+  SPINOR_OFF(base,Dir,ent,FLAV); ent++;					\
   if((!local)&&(!st.same_node[Dir]) ) {					\
     LOAD_CHI(base);							\
-    MULT_2SPIN_DIR_PF(Dir,base);					\
+    MULT_2SPIN_DIR_PF_USE(Dir,base,FLAV);				\
     LOAD64(%r10,isigns);						\
     RECON;								\
     nmu++;								\
   }									
 
-#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON)			\
+#define ASM_LEG_XP(Dir,NxtDir,PERMUTE_DIR,PROJ,RECON,FLAV)\
   nmu=0;								\
   { ZERO_PSI;}								\
-  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal); ent++;		\
+  base = st.GetInfo(ptype,local,perm,Dir,ent,plocal);			\
+  SPINOR_OFF(base,Dir,ent,FLAV); ent++;					\
   if((!local)&&(!st.same_node[Dir]) ) {					\
     LOAD_CHI(base);							\
-    MULT_2SPIN_DIR_PF(Dir,base);					\
+    MULT_2SPIN_DIR_PF_USE(Dir,base,FLAV);				\
     LOAD64(%r10,isigns);						\
     RECON;								\
     nmu++;								\
@@ -125,12 +142,25 @@
 #define RESULT(base,basep) if (nmu){ ADD_RESULT(base,base);}
 
 #endif
+
+#define BODY(FLAV) \
+   ASM_LEG_XP(Xp,Yp,PERMUTE_DIR3,DIR0_PROJMEM,DIR0_RECON,FLAV); \
+      ASM_LEG(Yp,Zp,PERMUTE_DIR2,DIR1_PROJMEM,DIR1_RECON,FLAV); \
+      ASM_LEG(Zp,Tp,PERMUTE_DIR1,DIR2_PROJMEM,DIR2_RECON,FLAV);	\
+      ASM_LEG(Tp,Xm,PERMUTE_DIR0,DIR3_PROJMEM,DIR3_RECON,FLAV); \
+      \
+      ASM_LEG(Xm,Ym,PERMUTE_DIR3,DIR4_PROJMEM,DIR4_RECON,FLAV); \
+      ASM_LEG(Ym,Zm,PERMUTE_DIR2,DIR5_PROJMEM,DIR5_RECON,FLAV); \
+      ASM_LEG(Zm,Tm,PERMUTE_DIR1,DIR6_PROJMEM,DIR6_RECON,FLAV); \
+      ASM_LEG(Tm,Xp,PERMUTE_DIR0,DIR7_PROJMEM,DIR7_RECON,FLAV)
+
 {
   int nmu;
   int local,perm, ptype;
   uint64_t base;
   uint64_t basep;
   const uint64_t plocal =(uint64_t) & in._odata[0];
+  
 
   COMPLEX_SIGNS(isigns);
   MASK_REGS;
@@ -152,15 +182,7 @@
       int  ent=ss*8;// 2*Ndim
       int nent=ssn*8;
 
-   ASM_LEG_XP(Xp,Yp,PERMUTE_DIR3,DIR0_PROJMEM,DIR0_RECON);
-      ASM_LEG(Yp,Zp,PERMUTE_DIR2,DIR1_PROJMEM,DIR1_RECON);
-      ASM_LEG(Zp,Tp,PERMUTE_DIR1,DIR2_PROJMEM,DIR2_RECON);
-      ASM_LEG(Tp,Xm,PERMUTE_DIR0,DIR3_PROJMEM,DIR3_RECON);
-
-      ASM_LEG(Xm,Ym,PERMUTE_DIR3,DIR4_PROJMEM,DIR4_RECON);
-      ASM_LEG(Ym,Zm,PERMUTE_DIR2,DIR5_PROJMEM,DIR5_RECON);
-      ASM_LEG(Zm,Tm,PERMUTE_DIR1,DIR6_PROJMEM,DIR6_RECON);
-      ASM_LEG(Tm,Xp,PERMUTE_DIR0,DIR7_PROJMEM,DIR7_RECON);
+      BODY(0);
 
 #ifdef EXTERIOR
       if (nmu==0) break;
@@ -169,6 +191,18 @@
       base = (uint64_t) &out._odata[ss];
       basep= st.GetPFInfo(nent,plocal); nent++;
       RESULT(base,basep);
+
+#ifdef GPARITY
+      //Second flavor
+      ent = ss*8;
+      nent = ssn*8;
+      BODY(1);
+
+      base = (uint64_t) &(out._odata[ss](1));
+      basep= st.GetPFInfo(nent,plocal); 
+      SPINOR_OFF(basep,nent % 8,nent,1); nent++;
+      RESULT(base,basep);
+#endif
     }
     ssU++;
     UNLOCK_GAUGE(0);
@@ -194,3 +228,6 @@
 #undef ASM_LEG
 #undef ASM_LEG_XP
 #undef RESULT
+#undef BODY
+#undef MULT_2SPIN_DIR_PF_USE
+#undef SPINOR_OFF

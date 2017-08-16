@@ -38,15 +38,18 @@ typedef typename GparityDomainWallFermionR::FermionField FermionField;
 
 int main (int argc, char ** argv)
 {
-  const int nu = 3;
+  const int nu = 0;
 
   Grid_init(&argc,&argv);
 
-
   const int Ls=4;
-  const int L =4;
-  std::vector<int> latt_2f(Nd,L);
-  std::vector<int> latt_1f(Nd,L); latt_1f[nu] = 2*L;
+  //const int L =4;
+  //std::vector<int> latt_2f(Nd,L);
+
+  std::vector<int> latt_2f = GridDefaultLatt();
+  std::vector<int> latt_1f(latt_2f); latt_1f[nu] = 2*latt_2f[nu];
+  int L = latt_2f[nu];
+
 
   std::vector<int> simd_layout = GridDefaultSimd(Nd,vComplex::Nsimd());
   std::vector<int> mpi_layout  = GridDefaultMpi(); //node layout

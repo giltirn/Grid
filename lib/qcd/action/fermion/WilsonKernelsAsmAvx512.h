@@ -71,6 +71,13 @@ WilsonKernels<ZWilsonImplF>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,Doub
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -80,6 +87,14 @@ template<> void
 WilsonKernels<ZWilsonImplFH>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 
 #undef INTERIOR_AND_EXTERIOR
 #define INTERIOR
@@ -94,6 +109,13 @@ WilsonKernels<ZWilsonImplF>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,D
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -104,6 +126,12 @@ WilsonKernels<ZWilsonImplFH>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
 
 #undef INTERIOR_AND_EXTERIOR
 #undef INTERIOR
@@ -118,6 +146,13 @@ WilsonKernels<ZWilsonImplF>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,D
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -127,7 +162,14 @@ template<> void
 WilsonKernels<ZWilsonImplFH>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
-      
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 /////////////////////////////////////////////////////////////////
 // XYZT vectorised, dag Kernel, single
 /////////////////////////////////////////////////////////////////
@@ -145,6 +187,13 @@ WilsonKernels<ZWilsonImplF>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,D
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -154,6 +203,13 @@ template<> void
 WilsonKernels<ZWilsonImplFH>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
 
 #undef INTERIOR_AND_EXTERIOR
 #define INTERIOR
@@ -168,6 +224,13 @@ WilsonKernels<ZWilsonImplF>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & l
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -177,6 +240,13 @@ template<> void
 WilsonKernels<ZWilsonImplFH>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
 
 #undef INTERIOR_AND_EXTERIOR
 #undef INTERIOR
@@ -190,7 +260,14 @@ template<> void
 WilsonKernels<ZWilsonImplF>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
-				    
+				
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplF>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+    
 template<> void 
 WilsonKernels<WilsonImplFH>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -200,6 +277,14 @@ template<> void
 WilsonKernels<ZWilsonImplFH>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplFH>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 				    
 #undef MAYBEPERM
 #undef MULT_2SPIN
@@ -384,14 +469,30 @@ WilsonKernels<ZWilsonImplD>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,Doub
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplDF>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 
 #undef INTERIOR_AND_EXTERIOR
 #define INTERIOR
@@ -400,19 +501,35 @@ template<> void
 WilsonKernels<WilsonImplD>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplD>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplDF>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
 
 #undef INTERIOR_AND_EXTERIOR
 #undef INTERIOR
@@ -421,19 +538,35 @@ template<> void
 WilsonKernels<WilsonImplD>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplD>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
       
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplDF>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
       
 /////////////////////////////////////////////////////////////////
 // XYZT vectorised, dag Kernel, single
@@ -451,14 +584,30 @@ WilsonKernels<ZWilsonImplD>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,D
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplDF>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 
 #undef INTERIOR_AND_EXTERIOR
 #define INTERIOR
@@ -467,19 +616,36 @@ template<> void
 WilsonKernels<WilsonImplD>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplD>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
 
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
 template<> void 
 WilsonKernels<ZWilsonImplDF>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+
 
 #undef INTERIOR_AND_EXTERIOR
 #undef INTERIOR
@@ -492,7 +658,14 @@ template<> void
 WilsonKernels<ZWilsonImplD>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
-				    
+			
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplD>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
+	    
 template<> void 
 WilsonKernels<WilsonImplDF>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
@@ -501,6 +674,13 @@ template<> void
 WilsonKernels<ZWilsonImplDF>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
 						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
 #include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+
+#define GPARITY
+template<> void 
+WilsonKernels<GparityWilsonImplDF>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,
+						int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
+#include <qcd/action/fermion/WilsonKernelsAsmBody.h>
+#undef GPARITY
 				    
 #undef MAYBEPERM
 #undef MULT_2SPIN
