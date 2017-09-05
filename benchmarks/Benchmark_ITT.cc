@@ -672,7 +672,199 @@ public:
     return mflops_best;
   }
 
+
+
+
+  static double GparityDWF(int Ls,int L)
+  {
+    typedef typename GparityDomainWallFermionR::FermionField GparityLatticeFermion;
+    
+    RealD mass=0.1;
+    RealD M5  =1.8;
+
+    double mflops;
+    double mflops_best = 0;
+    double mflops_worst= 0;
+    std::vector<double> mflops_all;
+
+    ///////////////////////////////////////////////////////
+    // Set/Get the layout & grid size
+    ///////////////////////////////////////////////////////
+    int threads = GridThread::GetThreads();
+    std::vector<int> mpi = GridDefaultMpi(); assert(mpi.size()==4);
+    std::vector<int> local({L,L,L,L});
+
+    GridCartesian         * TmpGrid   = SpaceTimeGrid::makeFourDimGrid(std::vector<int>({64,64,64,64}), 
+								       GridDefaultSimd(Nd,vComplex::Nsimd()),GridDefaultMpi());
+    uint64_t NP = TmpGrid->RankCount();
+    uint64_t NN = TmpGrid->NodeCount();
+    NN_global=NN;
+    uint64_t SHM=NP/NN;
+
+    std::vector<int> internal;
+    if      ( SHM == 1 )   internal = std::vector<int>({1,1,1,1});
+    else if ( SHM == 2 )   internal = std::vector<int>({2,1,1,1});
+    else if ( SHM == 4 )   internal = std::vector<int>({2,2,1,1});
+    else if ( SHM == 8 )   internal = std::vector<int>({2,2,2,1});
+    else assert(0);
+
+    std::vector<int> nodes({mpi[0]/internal[0],mpi[1]/internal[1],mpi[2]/internal[2],mpi[3]/internal[3]});
+    std::vector<int> latt4({local[0]*nodes[0],local[1]*nodes[1],local[2]*nodes[2],local[3]*nodes[3]});
+
+    ///////// Welcome message ////////////
+    std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+    std::cout<<GridLogMessage << "Benchmark Gparity DWF on "<<L<<"^4 local volume "<<std::endl;
+    std::cout<<GridLogMessage << "* Global volume  : "<<GridCmdVectorIntToString(latt4)<<std::endl;
+    std::cout<<GridLogMessage << "* Ls             : "<<Ls<<std::endl;
+    std::cout<<GridLogMessage << "* MPI ranks      : "<<GridCmdVectorIntToString(mpi)<<std::endl;
+    std::cout<<GridLogMessage << "* Intranode      : "<<GridCmdVectorIntToString(internal)<<std::endl;
+    std::cout<<GridLogMessage << "* nodes          : "<<GridCmdVectorIntToString(nodes)<<std::endl;
+    std::cout<<GridLogMessage << "* Using "<<threads<<" threads"<<std::endl;
+    std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+
+
+    ///////// Lattice Init ////////////
+    GridCartesian         * UGrid   = SpaceTimeGrid::makeFourDimGrid(latt4, GridDefaultSimd(Nd,vComplex::Nsimd()),GridDefaultMpi());
+    GridRedBlackCartesian * UrbGrid = SpaceTimeGrid::makeFourDimRedBlackGrid(UGrid);
+    GridCartesian         * FGrid   = SpaceTimeGrid::makeFiveDimGrid(Ls,UGrid);
+    GridRedBlackCartesian * FrbGrid = SpaceTimeGrid::makeFiveDimRedBlackGrid(Ls,UGrid);
+
+    
+    ///////// RNG Init ////////////
+    std::vector<int> seeds4({1,2,3,4});
+    std::vector<int> seeds5({5,6,7,8});
+    GridParallelRNG          RNG4(UGrid);  RNG4.SeedFixedIntegers(seeds4);
+    GridParallelRNG          RNG5(FGrid);  RNG5.SeedFixedIntegers(seeds5);
+    std::cout << GridLogMessage << "Initialised RNGs" << std::endl;
+
+    ///////// Source preparation ////////////
+    GparityLatticeFermion src   (FGrid); random(RNG5,src);
+    GparityLatticeFermion tmp   (FGrid);
+
+    RealD N2 = 1.0/::sqrt(norm2(src));
+    src = src*N2;
+    
+    LatticeGaugeField Umu(UGrid);  SU3::HotConfiguration(RNG4,Umu); 
+
+    GparityDomainWallFermionR Dw(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
+
+    GparityLatticeFermion src_e (FrbGrid);
+    GparityLatticeFermion src_o (FrbGrid);
+    GparityLatticeFermion r_e   (FrbGrid);
+    GparityLatticeFermion r_o   (FrbGrid);
+    GparityLatticeFermion r_eo  (FGrid);
+    {
+
+      pickCheckerboard(Even,src_e,src);
+      pickCheckerboard(Odd,src_o,src);
+
+#if defined(AVX512) 
+      const int num_cases = 6;
+      std::string fmt("A/S ; A/O ; U/S ; U/O ; G/S ; G/O ");
+#else
+      const int num_cases = 4;
+      std::string fmt("U/S ; U/O ; G/S ; G/O ");
+#endif
+      controls Cases [] = {
+#ifdef AVX512
+	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
+	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  },
+#endif
+	{ QCD::WilsonKernelsStatic::OptHandUnroll, QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
+	{ QCD::WilsonKernelsStatic::OptHandUnroll, QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  },
+	{ QCD::WilsonKernelsStatic::OptGeneric   , QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
+	{ QCD::WilsonKernelsStatic::OptGeneric   , QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  }
+      }; 
+
+      for(int c=0;c<num_cases;c++) {
+
+	QCD::WilsonKernelsStatic::Comms = Cases[c].CommsOverlap;
+	QCD::WilsonKernelsStatic::Opt   = Cases[c].Opt;
+	CartesianCommunicator::SetCommunicatorPolicy(Cases[c].CommsAsynch);
+
+	std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+	if ( WilsonKernelsStatic::Opt == WilsonKernelsStatic::OptGeneric   ) std::cout << GridLogMessage<< "* Using GENERIC Nc WilsonKernels" <<std::endl;
+	if ( WilsonKernelsStatic::Opt == WilsonKernelsStatic::OptHandUnroll) std::cout << GridLogMessage<< "* Using Nc=3       WilsonKernels" <<std::endl;
+	if ( WilsonKernelsStatic::Opt == WilsonKernelsStatic::OptInlineAsm ) std::cout << GridLogMessage<< "* Using Asm Nc=3   WilsonKernels" <<std::endl;
+	if ( WilsonKernelsStatic::Comms == WilsonKernelsStatic::CommsAndCompute ) std::cout << GridLogMessage<< "* Using Overlapped Comms/Compute" <<std::endl;
+	if ( WilsonKernelsStatic::Comms == WilsonKernelsStatic::CommsThenCompute) std::cout << GridLogMessage<< "* Using sequential comms compute" <<std::endl;
+	if ( sizeof(Real)==4 )   std::cout << GridLogMessage<< "* SINGLE precision "<<std::endl;
+	if ( sizeof(Real)==8 )   std::cout << GridLogMessage<< "* DOUBLE precision "<<std::endl;
+	std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+
+	int nwarm = 200;
+	double t0=usecond();
+	FGrid->Barrier();
+	for(int i=0;i<nwarm;i++){
+	  Dw.DhopEO(src_o,r_e,DaggerNo);
+	}
+	FGrid->Barrier();
+	double t1=usecond();
+	//	uint64_t ncall = (uint64_t) 2.5*1000.0*1000.0*nwarm/(t1-t0);
+	//	if (ncall < 500) ncall = 500;
+	uint64_t ncall = 1000;
+
+	FGrid->Broadcast(0,&ncall,sizeof(ncall));
+
+	//	std::cout << GridLogMessage << " Estimate " << ncall << " calls per second"<<std::endl;
+	Dw.ZeroCounters();
+
+	time_statistics timestat;
+	std::vector<double> t_time(ncall);
+	for(uint64_t i=0;i<ncall;i++){
+	  t0=usecond();
+	  Dw.DhopEO(src_o,r_e,DaggerNo);
+	  t1=usecond();
+	  t_time[i] = t1-t0;
+	}
+	FGrid->Barrier();
+	
+	double volume=Ls;  for(int mu=0;mu<Nd;mu++) volume=volume*latt4[mu];
+	double flops=2*(1344.0*volume)/2; //2 flavors
+	double mf_hi, mf_lo, mf_err;
+
+	timestat.statistics(t_time);
+	mf_hi = flops/timestat.min;
+	mf_lo = flops/timestat.max;
+	mf_err= flops/timestat.min * timestat.err/timestat.mean;
+
+	mflops = flops/timestat.mean;
+	mflops_all.push_back(mflops);
+	if ( mflops_best == 0   ) mflops_best = mflops;
+	if ( mflops_worst== 0   ) mflops_worst= mflops;
+	if ( mflops>mflops_best ) mflops_best = mflops;
+	if ( mflops<mflops_worst) mflops_worst= mflops;
+
+	std::cout<<GridLogMessage << std::fixed << std::setprecision(1)<<"Deo mflop/s =   "<< mflops << " ("<<mf_err<<") " << mf_lo<<"-"<<mf_hi <<std::endl;
+	std::cout<<GridLogMessage << std::fixed << std::setprecision(1)<<"Deo mflop/s per rank   "<< mflops/NP<<std::endl;
+	std::cout<<GridLogMessage << std::fixed << std::setprecision(1)<<"Deo mflop/s per node   "<< mflops/NN<<std::endl;
+
+	Dw.Report();
+      }
+      std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+      std::cout<<GridLogMessage << L<<"^4 x "<<Ls<< " Deo Best  mflop/s        =   "<< mflops_best << " ; " << mflops_best/NN<<" per node " <<std::endl;
+      std::cout<<GridLogMessage << L<<"^4 x "<<Ls<< " Deo Worst mflop/s        =   "<< mflops_worst<< " ; " << mflops_worst/NN<<" per node " <<std::endl;
+      std::cout<<GridLogMessage << L<<"^4 x "<<Ls<< " Performance Robustness   =   "<< mflops_worst/mflops_best <<std::endl;
+      std::cout<<GridLogMessage <<fmt << std::endl;
+      std::cout<<GridLogMessage ;
+
+      for(int i=0;i<mflops_all.size();i++){
+	std::cout<<mflops_all[i]/NN<<" ; " ;
+      }
+      std::cout<<std::endl;
+      std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+
+    }
+    return mflops_best;
+  }
+
+
+
+
+
+  
 };
+
 
 int main (int argc, char ** argv)
 {
@@ -715,6 +907,7 @@ int main (int argc, char ** argv)
   std::vector<double> wilson;
   std::vector<double> dwf4;
   std::vector<double> dwf5;
+  std::vector<double> gpdwf4;
 
   if ( do_wilson ) {
     int Ls=1;
@@ -744,12 +937,21 @@ int main (int argc, char ** argv)
       dwf5.push_back(Benchmark::DWF5(Ls,L_list[l]));
     }
 
+  if ( do_dwf ) {
+    std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+    std::cout<<GridLogMessage << " Gparity domain wall dslash 4D vectorised (Ls/2)" <<std::endl;
+    std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
+    for(int l=0;l<L_list.size();l++){
+      gpdwf4.push_back(Benchmark::GparityDWF(Ls/2,L_list[l])); //use Ls/2 so the amount of Flops for DWF and GparityDWF are the same
+    }
+  }
+    
   std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
   std::cout<<GridLogMessage << " Summary table Ls="<<Ls <<std::endl;
   std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
-  std::cout<<GridLogMessage << "L \t\t Wilson \t DWF4 \t DWF5 " <<std::endl;
+  std::cout<<GridLogMessage << "L \t\t Wilson \t DWF4 \t DWF5 \t GparityDWF4 (Ls/2)" <<std::endl;
   for(int l=0;l<L_list.size();l++){
-    std::cout<<GridLogMessage << L_list[l] <<" \t\t "<< wilson[l]<<" \t "<<dwf4[l]<<" \t "<<dwf5[l] <<std::endl;
+    std::cout<<GridLogMessage << L_list[l] <<" \t\t "<< wilson[l]<<" \t "<<dwf4[l]<<" \t "<<dwf5[l] << " \t " << gpdwf4[l] <<std::endl;
   }
   std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
 
@@ -757,9 +959,9 @@ int main (int argc, char ** argv)
   std::cout<<GridLogMessage << " Per Node Summary table Ls="<<Ls <<std::endl;
   std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
   int NN=NN_global;
-  std::cout<<GridLogMessage << " L \t\t Wilson\t\t DWF4  \t\t DWF5 " <<std::endl;
+  std::cout<<GridLogMessage << " L \t\t Wilson\t\t DWF4  \t\t DWF5 \t\t GparityDWF4 (Ls/2)" <<std::endl;
   for(int l=0;l<L_list.size();l++){
-    std::cout<<GridLogMessage << L_list[l] <<" \t\t "<< wilson[l]/NN<<" \t "<<dwf4[l]/NN<<" \t "<<dwf5[l] /NN<<std::endl;
+    std::cout<<GridLogMessage << L_list[l] <<" \t\t "<< wilson[l]/NN<<" \t "<<dwf4[l]/NN<<" \t "<<dwf5[l] /NN<<" \t "<< gpdwf4[l] <<std::endl;
   }
   std::cout<<GridLogMessage << "=================================================================================="<<std::endl;
 
