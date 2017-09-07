@@ -235,7 +235,7 @@ public:
     std::cout<<GridLogMessage << "  L  "<<"\t\t"<<"bytes"<<"\t\t\t"<<"GB/s"<<"\t\t"<<"Gflop/s"<<"\t\t seconds"<<std::endl;
     std::cout<<GridLogMessage << "----------------------------------------------------------"<<std::endl;
   
-  uint64_t lmax=48;
+    uint64_t lmax=48;
 #define NLOOP (100*lmax*lmax*lmax*lmax/lat/lat/lat/lat)
 
     GridSerialRNG          sRNG;      sRNG.SeedFixedIntegers(std::vector<int>({45,12,81,9}));
@@ -758,18 +758,18 @@ public:
       pickCheckerboard(Even,src_e,src);
       pickCheckerboard(Odd,src_o,src);
 
-#if defined(AVX512) 
-      const int num_cases = 6;
-      std::string fmt("A/S ; A/O ; U/S ; U/O ; G/S ; G/O ");
-#else
+// #if defined(AVX512) 
+//       const int num_cases = 6;
+//       std::string fmt("A/S ; A/O ; U/S ; U/O ; G/S ; G/O ");
+// #else
       const int num_cases = 4;
       std::string fmt("U/S ; U/O ; G/S ; G/O ");
-#endif
+      //#endif
       controls Cases [] = {
-#ifdef AVX512
-	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
-	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  },
-#endif
+// #ifdef AVX512
+// 	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
+// 	{ QCD::WilsonKernelsStatic::OptInlineAsm , QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  },
+// #endif
 	{ QCD::WilsonKernelsStatic::OptHandUnroll, QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
 	{ QCD::WilsonKernelsStatic::OptHandUnroll, QCD::WilsonKernelsStatic::CommsAndCompute  ,CartesianCommunicator::CommunicatorPolicySequential  },
 	{ QCD::WilsonKernelsStatic::OptGeneric   , QCD::WilsonKernelsStatic::CommsThenCompute ,CartesianCommunicator::CommunicatorPolicySequential  },
