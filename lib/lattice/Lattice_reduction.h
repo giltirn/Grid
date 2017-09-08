@@ -37,10 +37,50 @@ template<class vobj> inline RealD norm2(const Lattice<vobj> &arg){
   return std::real(nrm); 
 }
 
+#define BENCHMARK_INNERPRODUCT
+
+#ifdef BENCHMARK_INNERPRODUCT
+template<typename T>
+struct innerProductBenchmark{
+  struct Timings{
+    std::size_t count;
+    double total;
+    double threaded_region;
+    double thread_reduce;
+    double simd_reduce;
+    double global_sum;
+    Timings(): count(0),total(0),threaded_region(0),thread_reduce(0),simd_reduce(0),global_sum(0){}
+
+    void reset(){ count=0; total=threaded_region=thread_reduce=simd_reduce=global_sum=0; }
+    
+    void print(std::ostream &os){
+#define AVGS(time) time/count/1e3
+      
+      os << "Inner product timing averages over " << count << " calls - Total: " << AVGS(total) << "ms Threaded Region: " << AVGS(threaded_region)
+	 << "ms Thread reduce: " << AVGS(thread_reduce) << "ms SIMD reduce: " << AVGS(simd_reduce) << "ms Global sum: " << AVGS(global_sum) << "ms\n";
+
+#undef AVGS
+    }    
+  };
+  static inline Timings & getTimings(){
+    static Timings t; return t;
+  }    
+};
+#define START_TIMER(timer) innerProductBenchmark<vobj>::getTimings(). timer -= usecond()
+#define STOP_TIMER(timer) innerProductBenchmark<vobj>::getTimings(). timer += usecond()
+#define INCR_COUNT innerProductBenchmark<vobj>::getTimings().count++
+  
+#else
+#define START_TIMER(timer)
+#define STOP_TIMER(timer)
+#define INCR_COUNT
+#endif
+  
 // Double inner product
 template<class vobj>
 inline ComplexD innerProduct(const Lattice<vobj> &left,const Lattice<vobj> &right) 
 {
+  START_TIMER(total);
   typedef typename vobj::scalar_type scalar_type;
   typedef typename vobj::vector_typeD vector_type;
   scalar_type  nrm;
@@ -48,7 +88,7 @@ inline ComplexD innerProduct(const Lattice<vobj> &left,const Lattice<vobj> &righ
   GridBase *grid = left._grid;
   
   std::vector<vector_type,alignedAllocator<vector_type> > sumarray(grid->SumArraySize());
-  
+  START_TIMER(threaded_region);
   parallel_for(int thr=0;thr<grid->SumArraySize();thr++){
     int nwork, mywork, myoff;
     GridThread::GetWork(left._grid->oSites(),thr,mywork,myoff);
@@ -59,16 +99,32 @@ inline ComplexD innerProduct(const Lattice<vobj> &left,const Lattice<vobj> &righ
     }
     sumarray[thr]=TensorRemove(vnrm) ;
   }
-  
+  STOP_TIMER(threaded_region);
+
+  START_TIMER(thread_reduce);
   vector_type vvnrm; vvnrm=zero;  // sum across threads
   for(int i=0;i<grid->SumArraySize();i++){
     vvnrm = vvnrm+sumarray[i];
-  } 
+  }
+  STOP_TIMER(thread_reduce);
+
+  START_TIMER(simd_reduce);
   nrm = Reduce(vvnrm);// sum across simd
+  STOP_TIMER(simd_reduce);
+
+  START_TIMER(global_sum);
   right._grid->GlobalSum(nrm);
+  STOP_TIMER(global_sum);
+  
+  STOP_TIMER(total);
+  INCR_COUNT;
   return nrm;
 }
- 
+
+#undef START_TIMER
+#undef STOP_TIMER
+#undef INCR_COUNT
+  
 template<class Op,class T1>
 inline auto sum(const LatticeUnaryExpression<Op,T1> & expr)
   ->typename decltype(expr.first.func(eval(0,std::get<0>(expr.second))))::scalar_object

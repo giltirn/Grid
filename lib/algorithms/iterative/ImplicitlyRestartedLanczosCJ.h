@@ -708,47 +708,70 @@ void FinalCheck( int _Nk,
 		}
 	}
 
-void ConvCheck( int _Nk,
-	DenseVector<RealD>& Qt,
-	DenseVector<Field>& evec,
-	DenseVector<RealD> &eval2,
-	DenseVector<int>   &Iconv,
-	int &Nconv)
-	{
-	GridBase *grid = evec[0]._grid;
-	Field v(grid);
-		Field B(grid);
-		Nconv = 0;
-		for(int j = 0; j<_Nk; ++j){
-			B=0.;
-			B.checkerboard = evec[0].checkerboard;
-		    for(int k = 0; k<_Nk; ++k){
-		    	B += Qt[k+j*Nm] * evec[k];
-		    }
-		    std::cout<<GridLogMessage << "norm(B["<<j<<"])="<<norm2(B)<<std::endl;
-//		    _poly(_Linop,B,v);
-		    _Linop.HermOp(B,v);
-		    
-		    RealD vnum = real(innerProduct(B,v)); // HermOp.
-		    RealD vden = norm2(B);
-		    RealD vv0 = norm2(v);
-		    eval2[j] = vnum/vden;
-		    v -= eval2[j]*B;
-		    RealD vv = norm2(v);
+ void ConvCheck( int _Nk,
+		 DenseVector<RealD>& Qt,
+		 DenseVector<Field>& evec,
+		 DenseVector<RealD> &eval2,
+		 DenseVector<int>   &Iconv,
+		 int &Nconv)
+ {
+   double total_time = -usecond();
+   double dslash_time = 0;
+   double linalg_time = 0;
+   double inner_product_time = 0;
+   
+   GridBase *grid = evec[0]._grid;
+   Field v(grid);
+   Field B(grid);
+   Nconv = 0;
+   for(int j = 0; j<_Nk; ++j){
+     B=0.;
+     B.checkerboard = evec[0].checkerboard;
+
+     linalg_time -= usecond();
+     for(int k = 0; k<_Nk; ++k){
+       B += Qt[k+j*Nm] * evec[k];
+     }
+     linalg_time += usecond();
+     std::cout<<GridLogMessage << "norm(B["<<j<<"])="<<norm2(B)<<std::endl;
+     //		    _poly(_Linop,B,v);
+
+     dslash_time -= usecond();
+     _Linop.HermOp(B,v);
+     dslash_time += usecond();
+
+     inner_product_time -= usecond();
+     RealD vnum = real(innerProduct(B,v)); // HermOp.
+     RealD vden = norm2(B);
+     RealD vv0 = norm2(v);
+     inner_product_time += usecond();
+     
+     eval2[j] = vnum/vden;
+     linalg_time -= usecond();
+     v -= eval2[j]*B;
+     linalg_time += usecond();
+     
+     inner_product_time -= usecond();
+     RealD vv = norm2(v);
+     inner_product_time += usecond();
+     
+     std::cout.precision(13);
+     std::cout<<GridLogMessage << "[" << std::setw(3)<< std::setiosflags(std::ios_base::right) <<j<<"] ";
+     std::cout<<"eval = "<<std::setw(25)<< std::setiosflags(std::ios_base::left)<< eval2[j];
+     std::cout<<"|H B[i] - eval[i]B[i]|^2 "<< std::setw(25)<< std::setiosflags(std::ios_base::right)<< vv;
+     std::cout<<" "<< vnum/(sqrt(vden)*sqrt(vv0)) << std::endl;
 	    
-		    std::cout.precision(13);
-		    std::cout<<GridLogMessage << "[" << std::setw(3)<< std::setiosflags(std::ios_base::right) <<j<<"] ";
-		    std::cout<<"eval = "<<std::setw(25)<< std::setiosflags(std::ios_base::left)<< eval2[j];
-		    std::cout<<"|H B[i] - eval[i]B[i]|^2 "<< std::setw(25)<< std::setiosflags(std::ios_base::right)<< vv;
-		    std::cout<<" "<< vnum/(sqrt(vden)*sqrt(vv0)) << std::endl;
-	    
-// change the criteria as evals are supposed to be sorted, all evals smaller(larger) than Nstop should have converged
-		    if((vv<eresid*eresid) && (j == Nconv) ){
-		      Iconv[Nconv] = j;
-		      ++Nconv;
-		    }
-		}
-	}
+     // change the criteria as evals are supposed to be sorted, all evals smaller(larger) than Nstop should have converged
+     if((vv<eresid*eresid) && (j == Nconv) ){
+       Iconv[Nconv] = j;
+       ++Nconv;
+     }
+   }
+   
+   total_time += usecond();
+
+   std::cout << GridLogMessage << "IRL::ConvCheck timing breakdown - Total: " << total_time/1e6 << "s Dslash: " << dslash_time/1e6 << "s Field linalg: " << linalg_time/1e6 << "s Inner products: " << inner_product_time/1e6 << "s\n";   
+ }
 
 void ConvRotate2( int _Nk,
 	DenseVector<RealD>& Qt,
@@ -832,196 +855,210 @@ until convergence
  */
 
 // alternate implementation for minimizing memory usage.  May affect the performance
-    void calc(
-		DenseVector<RealD>& eval,
-	      DenseVector<Field>& evec,
-	      const Field& src,
-	      int& Nconv)
-      {
-
-	GridBase *grid = evec[0]._grid;
-	assert(grid == src._grid);
-
-	std::cout<<GridLogMessage << " -- Nk = " << Nk << " Np = "<< Np << std::endl;
-	std::cout<<GridLogMessage << " -- Nm = " << Nm << std::endl;
-	std::cout<<GridLogMessage << " -- size of eval   = " << eval.size() << std::endl;
-	std::cout<<GridLogMessage << " -- size of evec  = " << evec.size() << std::endl;
-	
-	assert(Nm == evec.size() && Nm == eval.size());
-	
-	DenseVector<RealD> lme(Nm);  
-	DenseVector<RealD> lme2(Nm);
-	DenseVector<RealD> eval2(Nm);
-	DenseVector<RealD> Qt(Nm*Nm);
-	DenseVector<int>   Iconv(Nm);
-
-	
-	Field f(grid);
-	Field v(grid);
-  
-	int k1 = 1;
-	int k2 = Nk;
-
-	Nconv = 0;
-
-	RealD beta_k;
-  
-	// Set initial vector
-	// (uniform vector) Why not src??
-	//	evec[0] = 1.0;
-	evec[0] = src;
-	std:: cout<<GridLogMessage <<"norm2(src)= " << norm2(src)<<std::endl;
-// << src._grid  << std::endl;
-	normalise(evec[0]);
-	std:: cout<<GridLogMessage <<"norm2(evec[0])= " << norm2(evec[0]) <<std::endl;
-// << evec[0]._grid << std::endl;
-	
-	// Initial Nk steps
-	OrthoTime=0.;
-	double t0=usecond()/1e6;
-	RealD norm; // sqrt norm of last vector
-	for(int k=0; k<Nk; ++k) step(eval,lme,evec,f,Nm,k,norm);
-	double t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::Initial steps: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	std::cout<<GridLogMessage <<"IRL::Initial steps:OrthoTime "<<OrthoTime<< "seconds"<<std::endl;
-//	std:: cout<<GridLogMessage <<"norm2(evec[1])= " << norm2(evec[1]) << std::endl;
-//	std:: cout<<GridLogMessage <<"norm2(evec[2])= " << norm2(evec[2]) << std::endl;
-	RitzMatrix(evec,Nk);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::RitzMatrix: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	for(int k=0; k<Nk; ++k){
-//	std:: cout<<GridLogMessage <<"eval " << k << " " <<eval[k] << std::endl;
-//	std:: cout<<GridLogMessage <<"lme " << k << " " << lme[k] << std::endl;
-	}
-
-	// Restarting loop begins
-	for(int iter = 0; iter<Niter; ++iter){
-
-	  std::cout<<GridLogMessage<<"\n Restart iteration = "<< iter << std::endl;
-
-	  // 
-	  // Rudy does a sort first which looks very different. Getting fed up with sorting out the algo defs.
-	  // We loop over 
-	  //
-	OrthoTime=0.;
-        for(int k=Nk; k<Nm; ++k) step(eval,lme,evec,f,Nm,k,norm);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL:: "<<Np <<" steps: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	std::cout<<GridLogMessage <<"IRL::Initial steps:OrthoTime "<<OrthoTime<< "seconds"<<std::endl;
-	  f *= lme[Nm-1];
-
-	  RitzMatrix(evec,k2);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL:: RitzMatrix: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	  
-	  // getting eigenvalues
-	  for(int k=0; k<Nm; ++k){
-	    eval2[k] = eval[k+k1-1];
-	    lme2[k] = lme[k+k1-1];
-	  }
-	  setUnit_Qt(Nm,Qt);
-	  diagonalize(eval2,lme2,Nm,Nm,Qt,grid);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL:: diagonalize: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
- 	int prelNconv=0;
-        for(int k=0; k<Nm; ++k){ //check all k's because QR can permutate eigenvectors
-	std::cout<<GridLogMessage <<"IRL:: Prel. conv. Test"<<k <<" " << norm<<" "<< fabs(Qt[Nm-1+Nm*k])<<std::endl;
-	// Arbitrarily add factor of 10 for now, to be conservative
-	if ( norm*fabs(Qt[Nm-1+Nm*k]) < eresid*10 ) prelNconv++;
-        }
-
-	  // sorting
-	  _sort.push(eval2,Nm);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL:: eval sorting: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	  
-	  // Implicitly shifted QR transformations
-	  setUnit_Qt(Nm,Qt);
-	  for(int ip=0; ip<k2; ++ip){
-	std::cout<<GridLogMessage << "eval "<< ip << " "<< eval2[ip] << std::endl;
-	}
-	  for(int ip=k2; ip<Nm; ++ip){ 
-	std::cout<<GridLogMessage << "qr_decomp "<< ip << " "<< eval2[ip] << std::endl;
-	    qr_decomp(eval,lme,Nm,Nm,Qt,eval2[ip],k1,Nm);
-		
-	}
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::qr_decomp: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-
-	
-	assert(k2<Nm);
-
-//	Uses more temorary
-//	Rotate0(Qt,evec,k1,k2,Nm);
-// 	Uses minimal temporary, possibly with less speed
-	Rotate0(Qt,evec,k1-1,k2+1,Nm);
-// 	Try if Rotate() doesn't work
-//	Rotate2(Qt,evec,k1,k2);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::QR rotation: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-
-	  // Compressed vector f and beta(k2)
-	  f *= Qt[Nm-1+Nm*(k2-1)];
-	  f += lme[k2-1] * evec[k2];
-	  beta_k = norm2(f);
-	  beta_k = sqrt(beta_k);
-	  std::cout<<GridLogMessage<<" beta(k) = "<<beta_k<<std::endl;
-
-	  RealD betar = 1.0/beta_k;
-	  evec[k2] = betar * f;
-	  lme[k2-1] = beta_k;
-
-	  // Convergence test
-	  for(int k=0; k<Nm; ++k){    
-	    eval2[k] = eval[k];
-	    lme2[k] = lme[k];
-	  }
-	  setUnit_Qt(Nm,Qt);
-	  diagonalize(eval2,lme2,Nk,Nm,Qt,grid);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::diagonalize: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-	  
-	if(prelNconv < Nstop)
-		    std::cout<<GridLogMessage << "Prel. Convergence test ("<<prelNconv<<") failed, skipping a real(and expnesive) one" <<std::endl;
-    else
-//	ConvCheck0( Nk, Nm, Qt, evec, eval2, Iconv, Nconv);
-	ConvCheck( Nk, Qt, evec, eval2, Iconv, Nconv);
-	t1=usecond()/1e6;
-	std::cout<<GridLogMessage <<"IRL::convergence testing: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
-
-
-	  std::cout<<GridLogMessage<<" #modes converged: "<<Nconv<<std::endl;
-
-	  if( Nconv>=Nstop ){
-	    goto converged;
-	  }
-	} // end of iter loop
-	
-	std::cout<<GridLogMessage<<"\n NOT converged.\n";
-	abort();
-	
-      converged:
-       // Sorting
-       eval.resize(Nconv);
-#ifndef MEM_SAVE
-       evec.resize(Nconv,grid);
-       for(int i=0; i<Nconv; ++i){
-         eval[i] = eval2[Iconv[i]];
-         evec[i] = B[Iconv[i]];
-       }
-#else
-	Rotate0(Qt,evec,0,Nk,Nm);
-	FinalCheck( Nk, eval,evec);
+ void calc(
+	   DenseVector<RealD>& eval,
+	   DenseVector<Field>& evec,
+	   const Field& src,
+	   int& Nconv)
+ {
+#ifdef BENCHMARK_INNERPRODUCT
+   typedef innerProductBenchmark<typename Field::vector_object> innerBenchmark;
 #endif
-// Skip sorting, as it doubles the memory usage(!) and can be avoided by diagonalizing "right away"
+   std::cout<<GridLogMessage << "Starting IRL\n";
+   innerBenchmark::getTimings().reset();
+   
+   GridBase *grid = evec[0]._grid;
+   assert(grid == src._grid);
 
-//      _sort.push(eval,evec,Nconv);
+   std::cout<<GridLogMessage << " -- Nk = " << Nk << " Np = "<< Np << std::endl;
+   std::cout<<GridLogMessage << " -- Nm = " << Nm << std::endl;
+   std::cout<<GridLogMessage << " -- size of eval   = " << eval.size() << std::endl;
+   std::cout<<GridLogMessage << " -- size of evec  = " << evec.size() << std::endl;
+	
+   assert(Nm == evec.size() && Nm == eval.size());
+	
+   DenseVector<RealD> lme(Nm);  
+   DenseVector<RealD> lme2(Nm);
+   DenseVector<RealD> eval2(Nm);
+   DenseVector<RealD> Qt(Nm*Nm);
+   DenseVector<int>   Iconv(Nm);
 
-      std::cout<<GridLogMessage << "\n Converged\n Summary :\n";
-      std::cout<<GridLogMessage << " -- Iterations  = "<< Nconv  << "\n";
-      std::cout<<GridLogMessage << " -- beta(k)     = "<< beta_k << "\n";
-      std::cout<<GridLogMessage << " -- Nconv       = "<< Nconv  << "\n";
+	
+   Field f(grid);
+   Field v(grid);
+  
+   int k1 = 1;
+   int k2 = Nk;
+
+   Nconv = 0;
+
+   RealD beta_k;
+  
+   // Set initial vector
+   // (uniform vector) Why not src??
+   //	evec[0] = 1.0;
+   evec[0] = src;
+   std:: cout<<GridLogMessage <<"norm2(src)= " << norm2(src)<<std::endl;
+   // << src._grid  << std::endl;
+   normalise(evec[0]);
+   std:: cout<<GridLogMessage <<"norm2(evec[0])= " << norm2(evec[0]) <<std::endl;
+   // << evec[0]._grid << std::endl;
+	
+   // Initial Nk steps
+   OrthoTime=0.;
+   double t0=usecond()/1e6;
+   RealD norm; // sqrt norm of last vector
+   for(int k=0; k<Nk; ++k) step(eval,lme,evec,f,Nm,k,norm);
+   double t1=usecond()/1e6;
+   std::cout<<GridLogMessage <<"IRL::Initial steps: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+   std::cout<<GridLogMessage <<"IRL::Initial steps:OrthoTime "<<OrthoTime<< "seconds"<<std::endl;
+   //	std:: cout<<GridLogMessage <<"norm2(evec[1])= " << norm2(evec[1]) << std::endl;
+   //	std:: cout<<GridLogMessage <<"norm2(evec[2])= " << norm2(evec[2]) << std::endl;
+   RitzMatrix(evec,Nk);
+   t1=usecond()/1e6;
+   std::cout<<GridLogMessage <<"IRL::RitzMatrix: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+   for(int k=0; k<Nk; ++k){
+     //	std:: cout<<GridLogMessage <<"eval " << k << " " <<eval[k] << std::endl;
+     //	std:: cout<<GridLogMessage <<"lme " << k << " " << lme[k] << std::endl;
+   }
+#ifdef BENCHMARK_INNERPRODUCT
+   innerBenchmark::getTimings().print(std::cout << GridLogMessage << "IRL pre restart loop -");
+   innerBenchmark::getTimings().reset();
+#endif
+   // Restarting loop begins
+   for(int iter = 0; iter<Niter; ++iter){
+
+     std::cout<<GridLogMessage<<"\n Restart iteration = "<< iter << std::endl;
+
+     // 
+     // Rudy does a sort first which looks very different. Getting fed up with sorting out the algo defs.
+     // We loop over 
+     //
+     OrthoTime=0.;
+     for(int k=Nk; k<Nm; ++k) step(eval,lme,evec,f,Nm,k,norm);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL:: "<<Np <<" steps: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+     std::cout<<GridLogMessage <<"IRL::Initial steps:OrthoTime "<<OrthoTime<< "seconds"<<std::endl;
+     f *= lme[Nm-1];
+
+     RitzMatrix(evec,k2);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL:: RitzMatrix: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+	  
+     // getting eigenvalues
+     for(int k=0; k<Nm; ++k){
+       eval2[k] = eval[k+k1-1];
+       lme2[k] = lme[k+k1-1];
      }
+     setUnit_Qt(Nm,Qt);
+     diagonalize(eval2,lme2,Nm,Nm,Qt,grid);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL:: diagonalize: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+     int prelNconv=0;
+     for(int k=0; k<Nm; ++k){ //check all k's because QR can permutate eigenvectors
+       std::cout<<GridLogMessage <<"IRL:: Prel. conv. Test"<<k <<" " << norm<<" "<< fabs(Qt[Nm-1+Nm*k])<<std::endl;
+       // Arbitrarily add factor of 10 for now, to be conservative
+       if ( norm*fabs(Qt[Nm-1+Nm*k]) < eresid*10 ) prelNconv++;
+     }
+
+     // sorting
+     _sort.push(eval2,Nm);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL:: eval sorting: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+	  
+     // Implicitly shifted QR transformations
+     setUnit_Qt(Nm,Qt);
+     for(int ip=0; ip<k2; ++ip){
+       std::cout<<GridLogMessage << "eval "<< ip << " "<< eval2[ip] << std::endl;
+     }
+     for(int ip=k2; ip<Nm; ++ip){ 
+       std::cout<<GridLogMessage << "qr_decomp "<< ip << " "<< eval2[ip] << std::endl;
+       qr_decomp(eval,lme,Nm,Nm,Qt,eval2[ip],k1,Nm);
+		
+     }
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL::qr_decomp: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+
+	
+     assert(k2<Nm);
+
+     //	Uses more temorary
+     //	Rotate0(Qt,evec,k1,k2,Nm);
+     // 	Uses minimal temporary, possibly with less speed
+     Rotate0(Qt,evec,k1-1,k2+1,Nm);
+     // 	Try if Rotate() doesn't work
+     //	Rotate2(Qt,evec,k1,k2);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL::QR rotation: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+
+     // Compressed vector f and beta(k2)
+     f *= Qt[Nm-1+Nm*(k2-1)];
+     f += lme[k2-1] * evec[k2];
+     beta_k = norm2(f);
+     beta_k = sqrt(beta_k);
+     std::cout<<GridLogMessage<<" beta(k) = "<<beta_k<<std::endl;
+
+     RealD betar = 1.0/beta_k;
+     evec[k2] = betar * f;
+     lme[k2-1] = beta_k;
+
+     // Convergence test
+     for(int k=0; k<Nm; ++k){    
+       eval2[k] = eval[k];
+       lme2[k] = lme[k];
+     }
+     setUnit_Qt(Nm,Qt);
+     diagonalize(eval2,lme2,Nk,Nm,Qt,grid);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL::diagonalize: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+	  
+     if(prelNconv < Nstop)
+       std::cout<<GridLogMessage << "Prel. Convergence test ("<<prelNconv<<") failed, skipping a real(and expnesive) one" <<std::endl;
+     else
+       //	ConvCheck0( Nk, Nm, Qt, evec, eval2, Iconv, Nconv);
+       ConvCheck( Nk, Qt, evec, eval2, Iconv, Nconv);
+     t1=usecond()/1e6;
+     std::cout<<GridLogMessage <<"IRL::convergence testing: "<<t1-t0<< "seconds"<<std::endl; t0=t1;
+
+
+     std::cout<<GridLogMessage<<" #modes converged: "<<Nconv<<std::endl;
+#ifdef BENCHMARK_INNERPRODUCT
+     innerBenchmark::getTimings().print(std::cout << GridLogMessage << "IRL restart -");
+     innerBenchmark::getTimings().reset();
+#endif
+     if( Nconv>=Nstop ){
+       goto converged;
+     }
+   } // end of iter loop
+	
+   std::cout<<GridLogMessage<<"\n NOT converged.\n";
+   abort();
+	
+ converged:
+   // Sorting
+   eval.resize(Nconv);
+#ifndef MEM_SAVE
+   evec.resize(Nconv,grid);
+   for(int i=0; i<Nconv; ++i){
+     eval[i] = eval2[Iconv[i]];
+     evec[i] = B[Iconv[i]];
+   }
+#else
+   Rotate0(Qt,evec,0,Nk,Nm);
+   FinalCheck( Nk, eval,evec);
+#endif
+#ifdef BENCHMARK_INNERPRODUCT
+   innerBenchmark::getTimings().print(std::cout << GridLogMessage << "IRL post restart loop-");
+#endif
+   // Skip sorting, as it doubles the memory usage(!) and can be avoided by diagonalizing "right away"
+
+   //      _sort.push(eval,evec,Nconv);
+
+   std::cout<<GridLogMessage << "\n Converged\n Summary :\n";
+   std::cout<<GridLogMessage << " -- Iterations  = "<< Nconv  << "\n";
+   std::cout<<GridLogMessage << " -- beta(k)     = "<< beta_k << "\n";
+   std::cout<<GridLogMessage << " -- Nconv       = "<< Nconv  << "\n";
+ }
 
 
     void EigenSort(DenseVector<double> evals,
