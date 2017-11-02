@@ -525,7 +525,7 @@ until convergence
       //////////////////////////////////////////////////////////////////////
       // Full final convergence test; unconditionally applied
       //////////////////////////////////////////////////////////////////////
-      for(int j = 0; j<=Nk; j++){
+      for(int j = 0; j<Nk; j++){
 	B=evec[j];
 	if( _Tester.ReconstructEval(j,eresid,B,eval2[j],evalMaxApprox) ) {
 	  Nconv++;
@@ -536,7 +536,8 @@ until convergence
 	std::cout << GridLogIRL << "Nconv ("<<Nconv<<") < Nstop ("<<Nstop<<")"<<std::endl;
 
       eval=eval2;
-
+      eval.resize(Nconv);
+      evec.resize(Nconv,grid);
       basisSortInPlace(evec,eval,reverse);
       
     }
