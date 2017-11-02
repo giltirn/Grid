@@ -47,11 +47,21 @@ int main (int argc, char ** argv)
   std::vector<int> mpi_layout  = GridDefaultMpi();
   std::vector<int> mpi_split (mpi_layout.size(),1);
 
+  GridCartesian         * UGrid   = SpaceTimeGrid::makeFourDimGrid(GridDefaultLatt(), GridDefaultSimd(Nd,vComplex::Nsimd()),GridDefaultMpi());
+  GridCartesian         * FGrid   = SpaceTimeGrid::makeFiveDimGrid(Ls,UGrid);
+  GridRedBlackCartesian * rbGrid  = SpaceTimeGrid::makeFourDimRedBlackGrid(UGrid);
+  GridRedBlackCartesian * FrbGrid = SpaceTimeGrid::makeFiveDimRedBlackGrid(Ls,UGrid);
+
+  /////////////////////////////////////////////
+  // Split into 1^4 mpi communicators
+  /////////////////////////////////////////////
 
   for(int i=0;i<argc;i++){
     if(std::string(argv[i]) == "--split"){
       for(int k=0;k<mpi_layout.size();k++){
-	std::stringstream ss; ss << argv[i+1+k]; ss >> mpi_split[k];
+	std::stringstream ss; 
+	ss << argv[i+1+k]; 
+	ss >> mpi_split[k];
       }
       break;
     }
@@ -60,24 +70,10 @@ int main (int argc, char ** argv)
   int nrhs = 1;
   for(int i=0;i<mpi_layout.size();i++) nrhs *= (mpi_layout[i]/mpi_split[i]);
 
-  std::cout << "Number of RHS is " << nrhs << " and geometry is (" << mpi_split[0];
-  for(int i=1;i<mpi_layout.size();i++) std::cout << ", " << mpi_split[i];
-  std::cout << ")\n";      
-  
-  GridCartesian         * UGrid   = SpaceTimeGrid::makeFourDimGrid(GridDefaultLatt(), GridDefaultSimd(Nd,vComplex::Nsimd()),GridDefaultMpi());
-  GridCartesian         * FGrid   = SpaceTimeGrid::makeFiveDimGrid(Ls,UGrid);
-  GridRedBlackCartesian * rbGrid  = SpaceTimeGrid::makeFourDimRedBlackGrid(UGrid);
-  GridRedBlackCartesian * FrbGrid = SpaceTimeGrid::makeFiveDimRedBlackGrid(Ls,UGrid);
-
-  //int nrhs = UGrid->RankCount() ;
-
-  /////////////////////////////////////////////
-  // Split into 1^4 mpi communicators
-  int me;
   GridCartesian         * SGrid = new GridCartesian(GridDefaultLatt(),
 						    GridDefaultSimd(Nd,vComplex::Nsimd()),
 						    mpi_split,
-						    *UGrid,me); 
+						    *UGrid); 
 
   GridCartesian         * SFGrid   = SpaceTimeGrid::makeFiveDimGrid(Ls,SGrid);
   GridRedBlackCartesian * SrbGrid  = SpaceTimeGrid::makeFourDimRedBlackGrid(SGrid);
@@ -95,9 +91,6 @@ int main (int argc, char ** argv)
   std::vector<FermionField> result(nrhs,FGrid);
   FermionField tmp(FGrid);
 
-  std::vector<FermionField> src_e(nrhs,FrbGrid);
-  std::vector<FermionField> src_o(nrhs,FrbGrid);
-
   for(int s=0;s<nrhs;s++) random(pRNG5,src[s]);
   for(int s=0;s<nrhs;s++) result[s]=zero;
 
@@ -106,10 +99,10 @@ int main (int argc, char ** argv)
   /////////////////
   // MPI only sends
   /////////////////
+  int me = UGrid->ThisRank();
+
   LatticeGaugeField s_Umu(SGrid);
   FermionField s_src(SFGrid);
-  FermionField s_src_e(SFrbGrid);
-  FermionField s_src_o(SFrbGrid);
   FermionField s_tmp(SFGrid);
   FermionField s_res(SFGrid);
 
@@ -118,20 +111,6 @@ int main (int argc, char ** argv)
   ///////////////////////////////////////////////////////////////
   Grid_split  (Umu,s_Umu);
   Grid_split  (src,s_src);
-
-  ///////////////////////////////////////////////////////////////
-  // Check even odd cases
-  ///////////////////////////////////////////////////////////////
-  for(int s=0;s<nrhs;s++){
-    pickCheckerboard(Odd , src_o[s], src[s]);
-    pickCheckerboard(Even, src_e[s], src[s]);
-  }
-  Grid_split  (src_e,s_src_e);
-  Grid_split  (src_o,s_src_o);
-  setCheckerboard(s_tmp, s_src_o);
-  setCheckerboard(s_tmp, s_src_e);
-  s_tmp = s_tmp - s_src;
-  std::cout << GridLogMessage<<" EvenOdd Difference " <<norm2(s_tmp)<<std::endl;
 
   ///////////////////////////////////////////////////////////////
   // Set up N-solvers as trivially parallel
@@ -147,7 +126,7 @@ int main (int argc, char ** argv)
 
   MdagMLinearOperator<DomainWallFermionR,FermionField> HermOp(Ddwf);
   MdagMLinearOperator<DomainWallFermionR,FermionField> HermOpCk(Dchk);
-  ConjugateGradient<FermionField> CG(1.0e-8,10000);
+  ConjugateGradient<FermionField> CG((1.0e-8/(me+1)),10000);
   s_res = zero;
   CG(HermOp,s_src,s_res);
 
