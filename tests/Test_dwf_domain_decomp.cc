@@ -194,14 +194,24 @@ int main (int argc, char ** argv)
 {
   Grid_init(&argc,&argv);
 
+  int Ls=8;
+  RealD mass=0.1;
+
   int freq = 1;
+  bool load_conf = false;
+  std::string config_file;
   for(int i=1;i<argc;i++){
     if(std::string(argv[i]) == "-freq"){
       std::stringstream ss; ss << argv[i+1]; ss >> freq;
+    }else if(std::string(argv[i]) == "-config"){
+      config_file = argv[i+1];
+      load_conf = true;
+    }else if(std::string(argv[i]) == "-Ls"){
+      std::stringstream ss; ss << argv[i+1]; ss >> Ls;
+    }else if(std::string(argv[i]) == "-mass"){
+      std::stringstream ss; ss << argv[i+1]; ss >> mass;
     }
   }
-
-  const int Ls=8;
 
   GridCartesian         * UGrid   = SpaceTimeGrid::makeFourDimGrid(GridDefaultLatt(), GridDefaultSimd(Nd,vComplexD::Nsimd()),GridDefaultMpi());
   GridRedBlackCartesian * UrbGrid = SpaceTimeGrid::makeFourDimRedBlackGrid(UGrid);
@@ -222,12 +232,17 @@ int main (int argc, char ** argv)
   LatticeFermionD result(FGrid); result=zero;
   LatticeGaugeFieldD Umu(UGrid);
   LatticeGaugeFieldF Umu_f(UGrid_f); 
-  
-  SU3::HotConfiguration(RNG4,Umu);
+
+  if(load_conf){
+    NerscIO rd;
+    FieldMetaData meta;
+    rd.readConfiguration(Umu,meta,config_file);
+  }else{
+    SU3::HotConfiguration(RNG4,Umu);
+  }  
 
   precisionChange(Umu_f,Umu);
   
-  RealD mass=0.1;
   RealD M5=1.8;
   DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
   DomainWallFermionF Ddwf_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
