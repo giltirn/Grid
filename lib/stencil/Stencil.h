@@ -101,6 +101,10 @@ void Gather_plane_exchange_table(std::vector<std::pair<int,int> >& table,const L
 ////////////////////////////////////////
 // The Stencil Class itself
 ////////////////////////////////////////
+ struct StencilControls{
+   static inline bool& CommsEnabled(){ static bool ce = true; return ce; }
+ };
+
 template<class vobj,class cobj>
 class CartesianStencil { // Stencil runs along coordinate axes only; NO diagonal fill in.
  public:
@@ -360,6 +364,8 @@ class CartesianStencil { // Stencil runs along coordinate axes only; NO diagonal
   
   template<class compressor> void HaloExchange(const Lattice<vobj> &source,compressor &compress) 
   {
+    if(StencilControls::CommsEnabled() == false) return;
+
     std::vector<std::vector<CommsRequest_t> > reqs;
     Prepare();
     HaloGather(source,compress);

@@ -305,6 +305,8 @@ public:
   template < class compressor>
   void HaloExchangeOpt(const Lattice<vobj> &source,compressor &compress) 
   {
+    if(StencilControls::CommsEnabled() == false) return;
+
     std::vector<std::vector<CommsRequest_t> > reqs;
     this->HaloExchangeOptGather(source,compress);
     double t1=usecond();
