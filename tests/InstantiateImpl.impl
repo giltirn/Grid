@@ -1,0 +1,49 @@
+#include "CayleyFermion5D.impl"
+
+namespace Grid{
+  namespace QCD{
+#define DOIT(A) template class CayleyFermion5D<A>;
+    TO_INSTANTIATE;
+#undef DOIT
+  }
+}
+
+#include "CayleyFermion5Dcache.impl"
+
+namespace Grid{
+  namespace QCD{   
+#define DOIT(A) INSTANTIATE_DPERP(A)
+    TO_INSTANTIATE;
+#undef DOIT
+  }
+}
+
+#include "WilsonFermion5D.impl"
+
+namespace Grid{
+  namespace QCD{
+#define DOIT(A) template class WilsonFermion5D<A>;
+    TO_INSTANTIATE;
+#undef DOIT
+  }
+}
+
+#include "WilsonKernels.impl"
+
+namespace Grid{
+  namespace QCD{
+#define DOIT(A) template class WilsonKernels<A>;
+    TO_INSTANTIATE;
+#undef DOIT
+  }
+}
+
+#include "WilsonKernelsHand.impl"
+
+namespace Grid{
+  namespace QCD{
+#define DOIT(A) INSTANTIATE_THEM(A);
+    TO_INSTANTIATE;
+#undef DOIT
+  }
+}

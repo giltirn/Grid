@@ -48,9 +48,10 @@ class ConjugateGradient : public OperatorFunction<Field> {
   Integer IterationsToComplete; //Number of iterations the CG took to finish. Filled in upon completion
   
   ConjugateGradient(RealD tol, Integer maxit, bool err_on_no_conv = true)
-      : Tolerance(tol),
-        MaxIterations(maxit),
-        ErrorOnNoConverge(err_on_no_conv){};
+    : Tolerance(tol),
+    MaxIterations(maxit),
+    ErrorOnNoConverge(err_on_no_conv),
+    IterationsToComplete(0){};
 
   void operator()(LinearOperatorBase<Field> &Linop, const Field &src, Field &psi) {
 
