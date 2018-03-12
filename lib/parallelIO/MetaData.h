@@ -211,7 +211,7 @@ template<class vobj> inline void PrepareMetaData(Lattice<vobj> & field, FieldMet
     //////////////////////////////////////////////////////////////////////
     // Utilities ; these are QCD aware
     //////////////////////////////////////////////////////////////////////
-    inline void reconstruct3(LorentzColourMatrix & cm)
+    inline void reconstruct3(LorentzColourMatrixD & cm)
     {
       const int x=0;
       const int y=1;

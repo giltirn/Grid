@@ -159,23 +159,23 @@ namespace Grid {
       if ( header.data_type == std::string("4D_SU3_GAUGE") ) {
 	if ( ieee32 || ieee32big ) {
 	  BinaryIO::readLatticeObject<iLorentzColourMatrix<vsimd>, LorentzColour2x3F> 
-	    (Umu,file,Gauge3x2munger<LorentzColour2x3F,LorentzColourMatrix>(), offset,format,
+	    (Umu,file,Gauge3x2munger<LorentzColour2x3F,LorentzColourMatrixD>(), offset,format,
 	     nersc_csum,scidac_csuma,scidac_csumb);
 	}
 	if ( ieee64 || ieee64big ) {
 	  BinaryIO::readLatticeObject<iLorentzColourMatrix<vsimd>, LorentzColour2x3D> 
-	    (Umu,file,Gauge3x2munger<LorentzColour2x3D,LorentzColourMatrix>(),offset,format,
+	    (Umu,file,Gauge3x2munger<LorentzColour2x3D,LorentzColourMatrixD>(),offset,format,
 	     nersc_csum,scidac_csuma,scidac_csumb);
 	}
       } else if ( header.data_type == std::string("4D_SU3_GAUGE_3x3") ) {
 	if ( ieee32 || ieee32big ) {
 	  BinaryIO::readLatticeObject<iLorentzColourMatrix<vsimd>,LorentzColourMatrixF>
-	    (Umu,file,GaugeSimpleMunger<LorentzColourMatrixF,LorentzColourMatrix>(),offset,format,
+	    (Umu,file,GaugeSimpleMunger<LorentzColourMatrixF,LorentzColourMatrixD>(),offset,format,
 	     nersc_csum,scidac_csuma,scidac_csumb);
 	}
 	if ( ieee64 || ieee64big ) {
 	  BinaryIO::readLatticeObject<iLorentzColourMatrix<vsimd>,LorentzColourMatrixD>
-	    (Umu,file,GaugeSimpleMunger<LorentzColourMatrixD,LorentzColourMatrix>(),offset,format,
+	    (Umu,file,GaugeSimpleMunger<LorentzColourMatrixD,LorentzColourMatrixD>(),offset,format,
 	     nersc_csum,scidac_csuma,scidac_csumb);
 	}
       } else {
