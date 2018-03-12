@@ -103,8 +103,11 @@ namespace Grid {
 
       assert(grid->_ndimension == 4);
       for(int d=0;d<4;d++){
-      assert(grid->_fdimensions[d]==field.dimension[d]);
-    }
+	if(grid->_fdimensions[d]!=field.dimension[d]){
+	  std::cerr << " Grid dimension " << d << " of size " << grid->_fdimensions[d] << " does not match size " << field.dimension[d] << " in header!" << std::endl;
+	  assert(0);
+	}
+      }
 
       field.link_trace = std::stod(header["LINK_TRACE"]);
       field.plaquette  = std::stod(header["PLAQUETTE"]);

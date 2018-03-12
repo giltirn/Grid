@@ -865,6 +865,8 @@ int main (int argc, char ** argv)
   RealD relup_delta_16c = 0.1;
   RealD relup_delta_8c = 0.1;
 
+  std::string config_file = "";
+
   for(int i=1;i<argc;i++){
     if(std::string(argv[i]) == "--params"){
       std::ifstream f(argv[i+1]);
@@ -884,6 +886,8 @@ int main (int argc, char ** argv)
 #undef PARSEIT
 
       //f >> outer_tol >> inner_tol_full >> inner_tol_half >> inner_tol_16c >> inner_tol_8c;      
+    }else if(std::string(argv[i]) == "--config"){
+      config_file = argv[i+1];
     }
   }
   
@@ -906,8 +910,13 @@ int main (int argc, char ** argv)
   LatticeFermionD result(FGrid); result=zero;
   LatticeGaugeFieldD Umu(UGrid);
   LatticeGaugeFieldF Umu_f(UGrid_f); 
-  
-  SU3::HotConfiguration(RNG4,Umu);
+
+  if(config_file.size() > 0){
+    FieldMetaData header;
+    NerscIO::readConfiguration(Umu,header,config_file);
+  }else{
+    SU3::HotConfiguration(RNG4,Umu);
+  }
 
   precisionChange(Umu_f,Umu);
   
