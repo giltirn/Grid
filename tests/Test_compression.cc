@@ -1021,9 +1021,9 @@ int main (int argc, char ** argv)
     DomainWallFermionCompressedComms8F DdwfC8_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
     SchurDiagMooeeOperator<DomainWallFermionCompressedComms8F,LatticeFermionF> HermOpEOC8_f(DdwfC8_f);
 
-    //#define ALGORITHM_MIXEDCG
+    #define ALGORITHM_MIXEDCG
     //#define ALGORITHM_RELUP
-#define ALGORITHM_SLOPPY_PREC_CG
+    //#define ALGORITHM_SLOPPY_PREC_CG
 
 #ifdef ALGORITHM_MIXEDCG
     std::cout << "Starting mixed CG with single/compressed-16 inner\n";
@@ -1139,7 +1139,7 @@ int main (int argc, char ** argv)
     std::cout << "Mass " << mass << std::endl;
     std::cout << "Outer tolerance " << outer_tol << std::endl;
 
-#if defined(ALGORITHM_MIXED_CG) || defined(ALGORITHM_SLOPPY_PREC_CG)
+#if defined(ALGORITHM_MIXEDCG) || defined(ALGORITHM_SLOPPY_PREC_CG)
     std::cout << "Inner tol full " << inner_tol_full << std::endl;
     std::cout << "Inner tol 1/2 prec " << inner_tol_half << std::endl;
     std::cout << "Inner tol compressed-16 " << inner_tol_16c << std::endl;
@@ -1160,7 +1160,7 @@ int main (int argc, char ** argv)
     diff = axpy_norm(diff_o, -1.0, result_o_half, result_o_full);
     std::cout << "Diff between results (s/h): " << diff << std::endl;
 
-#if defined(ALGORITHM_MIXED_CG) || defined(ALGORITHM_RELUP)
+#if defined(ALGORITHM_MIXEDCG) || defined(ALGORITHM_RELUP)
     std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << " patchup: " << patchup_16 << std::endl;
     std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << " patchup: " << patchup_8 << std::endl;
     std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << " patchup: " << patchup_half << std::endl;
