@@ -46,6 +46,79 @@ T parse(const std::string &name, std::istream &in){
   return out;
 }
 
+
+//Test preconditioned CG
+void testPCG(GridCartesian* UGrid, GridRedBlackCartesian* UrbGrid, GridCartesian* FGrid, GridRedBlackCartesian* FrbGrid,
+	     RealD mass, RealD M5, int Ls, LatticeGaugeFieldD &Umu, LatticeFermionD &src_o){
+
+  LatticeFermionD result_o(FrbGrid);
+  LatticeFermionD result_o_2(FrbGrid);
+  result_o.checkerboard = Odd;
+  result_o = zero;
+  result_o_2.checkerboard = Odd;
+  result_o_2 = zero;
+
+  DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionD,LatticeFermionD> HermOpEO(Ddwf);
+  //DoNothingLinearOperator<LatticeFermionD> Prec;
+  //FixedIterConjugateGradientPreconditioner<LatticeFermionD> Prec(HermOpEO, 20);
+  SloppyConjugateGradientPreconditioner<LatticeFermionD> Prec(HermOpEO, 1e-2, 1000);
+
+  std::cout << "Preconditioned CG" << std::endl;
+  InexactPreconditionedConjugateGradient<LatticeFermionD> pCG(Prec,1.0e-8,10000);
+  pCG(HermOpEO,src_o,result_o);
+
+  std::cout << "Starting regular CG" << std::endl;
+  ConjugateGradient<LatticeFermionD> CG(1.0e-8,10000);
+  CG(HermOpEO,src_o,result_o_2);
+
+  LatticeFermionD diff_o(FrbGrid);
+  RealD diff = axpy_norm(diff_o, -1.0, result_o, result_o_2);
+
+  std::cout << "pCG HermOp applications " << pCG.IterationsToComplete << "(outer) + " << Prec.InnerIterations << "(inner) = " << pCG.IterationsToComplete + Prec.InnerIterations << std::endl;
+  std::cout << "CG HermOp applications " << CG.IterationsToComplete << std::endl;
+  std::cout << "Diff between results: " << diff << std::endl;
+}
+
+
+
+void mixedPrecSolve(Integer &inner, Integer &outer, Integer &patchup,
+		    LatticeFermionD &result_o, LatticeFermionD &src_o,
+		    RealD outer_tol, RealD inner_tol, RealD outer_loop_norm_mult,
+		    LinearOperatorBase<LatticeFermionF> &_Linop_f, LinearOperatorBase<LatticeFermionD> &_Linop_d,
+		    GridRedBlackCartesian * FrbGrid_f){
+  MixedPrecisionConjugateGradient<LatticeFermionD,LatticeFermionF> mCG(outer_tol, 10000, 50, FrbGrid_f, _Linop_f, _Linop_d);
+  mCG.InnerTolerance = inner_tol;
+  mCG.OuterLoopNormMult = outer_loop_norm_mult;
+  mCG(src_o,result_o);
+  inner = mCG.TotalInnerIterations; outer = mCG.TotalOuterIterations; patchup = mCG.TotalFinalStepIterations;
+}
+
+
+
+void relupSolve(Integer &inner, Integer &outer, Integer &patchup,
+		LatticeFermionD &result_o, LatticeFermionD &src_o,
+		RealD outer_tol, RealD relup_delta,
+		LinearOperatorBase<LatticeFermionF> &_Linop_f, LinearOperatorBase<LatticeFermionD> &_Linop_d,
+		GridRedBlackCartesian * FrbGrid_f){     
+  ConjugateGradientReliableUpdate<LatticeFermionD,LatticeFermionF> relup(outer_tol, 2000, relup_delta, FrbGrid_f, _Linop_f, _Linop_d);
+  relup.ErrorOnNoConverge = false;
+  relup(src_o,result_o);
+  inner = relup.IterationsToComplete; outer = relup.ReliableUpdatesPerformed; patchup = relup.IterationsToCleanup;
+}
+
+void precCGsolve(Integer &inner, Integer &outer, 
+		 LatticeFermionD &result_o, LatticeFermionD &src_o,
+		 RealD outer_tol, Real inner_tol,
+		 LinearOperatorBase<LatticeFermionF> &_Linop_f, LinearOperatorBase<LatticeFermionD> &_Linop_d,
+		 GridRedBlackCartesian * FrbGrid_f){           
+  SloppyConjugateGradientLowerPrecPreconditioner<LatticeFermionD,LatticeFermionF> prec(_Linop_f, FrbGrid_f, inner_tol, 1000);
+  InexactPreconditionedConjugateGradient<LatticeFermionD> CG(prec, outer_tol, 100);
+  CG(_Linop_d,src_o,result_o);
+  inner = prec.InnerIterations; outer = CG.IterationsToComplete;
+}
+
+
 int main (int argc, char ** argv)
 {
   Grid_init(&argc,&argv);
@@ -138,250 +211,137 @@ int main (int argc, char ** argv)
   LatticeFermionD    src_o(FrbGrid);
   pickCheckerboard(Odd,src_o,src);
 
-  if(0){ //Test preconditioned CG
-    LatticeFermionD result_o(FrbGrid);
-    LatticeFermionD result_o_2(FrbGrid);
-    result_o.checkerboard = Odd;
-    result_o = zero;
-    result_o_2.checkerboard = Odd;
-    result_o_2 = zero;
-
-    DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionD,LatticeFermionD> HermOpEO(Ddwf);
-    //DoNothingLinearOperator<LatticeFermionD> Prec;
-    //FixedIterConjugateGradientPreconditioner<LatticeFermionD> Prec(HermOpEO, 20);
-    SloppyConjugateGradientPreconditioner<LatticeFermionD> Prec(HermOpEO, 1e-2, 1000);
-
-    std::cout << "Preconditioned CG" << std::endl;
-    InexactPreconditionedConjugateGradient<LatticeFermionD> pCG(Prec,1.0e-8,10000);
-    pCG(HermOpEO,src_o,result_o);
-
-    std::cout << "Starting regular CG" << std::endl;
-    ConjugateGradient<LatticeFermionD> CG(1.0e-8,10000);
-    CG(HermOpEO,src_o,result_o_2);
-
-    LatticeFermionD diff_o(FrbGrid);
-    RealD diff = axpy_norm(diff_o, -1.0, result_o, result_o_2);
-
-    std::cout << "pCG HermOp applications " << pCG.IterationsToComplete << "(outer) + " << Prec.InnerIterations << "(inner) = " << pCG.IterationsToComplete + Prec.InnerIterations << std::endl;
-    std::cout << "CG HermOp applications " << CG.IterationsToComplete << std::endl;
-    std::cout << "Diff between results: " << diff << std::endl;
-  }
-
-  if(0){ //Test compressor
-    LatticeFermionD result_o(FrbGrid);
-    LatticeFermionD result_o_2(FrbGrid);
-    result_o.checkerboard = Odd;
-    result_o = zero;
-    result_o_2.checkerboard = Odd;
-    result_o_2 = zero;
-
-    DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionD,LatticeFermionD> HermOpEO(Ddwf);
-
-    DomainWallFermionFixedPointComms16D DdwfC(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionFixedPointComms16D,LatticeFermionD> HermOpEOC(DdwfC);
-
-    std::cout << "Starting regular CG with compressed operator" << std::endl;
-    Integer iter1;
-    {
-      ConjugateGradient<LatticeFermionD> CG(1.0e-8,10000);
-      CG.ErrorOnNoConverge = false;
-      CG(HermOpEOC,src_o,result_o);
-      iter1 = CG.IterationsToComplete;
-    }
-    Integer iter2;
-    {
-      std::cout << "Starting regular CG" << std::endl;
-      ConjugateGradient<LatticeFermionD> CG(1.0e-8,10000);
-      CG(HermOpEO,src_o,result_o_2);
-      iter2 = CG.IterationsToComplete;
-    }
-
-    LatticeFermionD diff_o(FrbGrid);
-    RealD diff = axpy_norm(diff_o, -1.0, result_o, result_o_2);
-
-    std::cout << "CG HermOp CC applications " << iter1 << std::endl;
-    std::cout << "CG HermOp applications " << iter2 << std::endl;
-    std::cout << "Diff between results: " << diff << std::endl;
-  }
+  //testPCG(UGrid, UrbGrid, FGrid, FrbGrid, mass, M5, Ls, Umu, src_o);
   
-  if(1){ //Compare mixed prec restarted single/single internal with same but with single/compressed
-    LatticeFermionD result_o_full(FrbGrid);
-    LatticeFermionD result_o_half(FrbGrid);
-    LatticeFermionD result_o_16(FrbGrid);
-    LatticeFermionD result_o_8(FrbGrid);
-    result_o_full.checkerboard = Odd;
-    result_o_full = zero;
-    result_o_16 = result_o_8 = result_o_half = result_o_full;
+  //Compare mixed prec restarted single/single internal with same but with single/compressed
+  LatticeFermionD result_o_full(FrbGrid);
+  LatticeFermionD result_o_half(FrbGrid);
+  LatticeFermionD result_o_16(FrbGrid);
+  LatticeFermionD result_o_8(FrbGrid);
+  result_o_full.checkerboard = Odd;
+  result_o_full = zero;
+  result_o_16 = result_o_8 = result_o_half = result_o_full;
 
-    //Std
-    DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionD,LatticeFermionD> HermOpEO(Ddwf);
+  //Std
+  DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionD,LatticeFermionD> HermOpEO(Ddwf);
 
-    DomainWallFermionF Ddwf_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionF,LatticeFermionF> HermOpEO_f(Ddwf_f);
+  DomainWallFermionF Ddwf_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionF,LatticeFermionF> HermOpEO_f(Ddwf_f);
 
-    //1/2 prec
-    DomainWallFermionFH Ddwfhalf_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionFH,LatticeFermionF> HermOpEOhalf_f(Ddwfhalf_f);
+  //1/2 prec
+  DomainWallFermionFH Ddwfhalf_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionFH,LatticeFermionF> HermOpEOhalf_f(Ddwfhalf_f);
 
-    //16
-    DomainWallFermionFixedPointComms16F DdwfC16_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionFixedPointComms16F,LatticeFermionF> HermOpEOC16_f(DdwfC16_f);
+  //16
+  DomainWallFermionFixedPointComms16F DdwfC16_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionFixedPointComms16F,LatticeFermionF> HermOpEOC16_f(DdwfC16_f);
 
-    //8
-    DomainWallFermionFixedPointComms8F DdwfC8_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
-    SchurDiagMooeeOperator<DomainWallFermionFixedPointComms8F,LatticeFermionF> HermOpEOC8_f(DdwfC8_f);
+  //8
+  DomainWallFermionFixedPointComms8F DdwfC8_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionFixedPointComms8F,LatticeFermionF> HermOpEOC8_f(DdwfC8_f);
 
-    Integer inner_16, outer_16, patchup_16;
-    Integer inner_8, outer_8, patchup_8;
-    Integer inner_half, outer_half, patchup_half;
-    Integer inner_full, outer_full, patchup_full;
+  Integer inner_16, outer_16, patchup_16;
+  Integer inner_8, outer_8, patchup_8;
+  Integer inner_half, outer_half, patchup_half;
+  Integer inner_full, outer_full, patchup_full;
 
-    if(algorithm == MixedCG){
-      std::cout << "Starting mixed CG with single/compressed-16 inner\n";            
-      {
-	MixedPrecisionConjugateGradient<LatticeFermionD,LatticeFermionF> mCG(outer_tol, 10000, 50, FrbGrid_f, HermOpEOC16_f, HermOpEO);
-	mCG.InnerTolerance = inner_tol_16c;
-	mCG.OuterLoopNormMult = outer_loop_norm_mult;
-	mCG(src_o,result_o_16);
-	inner_16 = mCG.TotalInnerIterations; outer_16 = mCG.TotalOuterIterations; patchup_16 = mCG.TotalFinalStepIterations;
-      }
+  if(algorithm == MixedCG){
+    std::cout << "Starting mixed CG with single/compressed-16 inner\n";
+    mixedPrecSolve(inner_16, outer_16, patchup_16, result_o_16, src_o,
+		   outer_tol, inner_tol_16c, outer_loop_norm_mult, HermOpEOC16_f, HermOpEO, FrbGrid_f);
       
-      std::cout << "Starting mixed CG with single/compressed-8 inner\n";      
-      {
-	MixedPrecisionConjugateGradient<LatticeFermionD,LatticeFermionF> mCG(outer_tol, 10000, 50, FrbGrid_f, HermOpEOC8_f, HermOpEO);
-	mCG.InnerTolerance = inner_tol_8c;
-	mCG.OuterLoopNormMult = outer_loop_norm_mult;
-	mCG(src_o,result_o_8);
-	inner_8 = mCG.TotalInnerIterations; outer_8 = mCG.TotalOuterIterations; patchup_8 = mCG.TotalFinalStepIterations;
-      }
+    std::cout << "Starting mixed CG with single/compressed-8 inner\n";      
+    mixedPrecSolve(inner_8, outer_8, patchup_8, result_o_8, src_o,
+		   outer_tol, inner_tol_8c, outer_loop_norm_mult, HermOpEOC8_f, HermOpEO, FrbGrid_f);
       
-      std::cout << "Starting mixed CG with single/half inner\n";      
-      {
-	MixedPrecisionConjugateGradient<LatticeFermionD,LatticeFermionF> mCG(outer_tol, 10000, 50, FrbGrid_f, HermOpEOhalf_f, HermOpEO);
-	mCG.InnerTolerance = inner_tol_half;
-	mCG.OuterLoopNormMult = outer_loop_norm_mult;
-	mCG(src_o,result_o_half);
-	inner_half = mCG.TotalInnerIterations; outer_half = mCG.TotalOuterIterations; patchup_half = mCG.TotalFinalStepIterations;
-      }
+    std::cout << "Starting mixed CG with single/half inner\n";
+    mixedPrecSolve(inner_half, outer_half, patchup_half, result_o_half, src_o,
+		   outer_tol, inner_tol_half, outer_loop_norm_mult, HermOpEOhalf_f, HermOpEO, FrbGrid_f);
+         
+    std::cout << "Starting mixed CG with single/single inner\n";    
+    mixedPrecSolve(inner_full, outer_full, patchup_full, result_o_full, src_o,
+		   outer_tol, inner_tol_full, outer_loop_norm_mult, HermOpEO_f, HermOpEO, FrbGrid_f);
+
+  }else if(algorithm == ReliableUpdate){
+    std::cout << "Starting relup CG with single/compressed-16 inner\n";    
+    relupSolve(inner_16, outer_16, patchup_16, result_o_16, src_o,
+	       outer_tol, relup_delta_16c, HermOpEOC16_f, HermOpEO, FrbGrid_f);
       
-      std::cout << "Starting mixed CG with single/single inner\n";      
-      {
-	MixedPrecisionConjugateGradient<LatticeFermionD,LatticeFermionF> mCG(outer_tol, 10000, 50, FrbGrid_f, HermOpEO_f, HermOpEO);
-	mCG.InnerTolerance = inner_tol_full;
-	mCG.OuterLoopNormMult = outer_loop_norm_mult;
-	mCG(src_o,result_o_full);
-	inner_full = mCG.TotalInnerIterations; outer_full = mCG.TotalOuterIterations; patchup_full = mCG.TotalFinalStepIterations;
-      }
-    }else if(algorithm == ReliableUpdate){
-      std::cout << "Starting relup CG with single/compressed-16 inner\n";    
-      {
-	ConjugateGradientReliableUpdate<LatticeFermionD,LatticeFermionF> relup(outer_tol, 2000, relup_delta_16c, FrbGrid_f, HermOpEOC16_f, HermOpEO);
-	relup(src_o,result_o_16);
-	inner_16 = relup.IterationsToComplete; outer_16 = relup.ReliableUpdatesPerformed; patchup_16 = relup.IterationsToCleanup;
-      }
+    std::cout << "Starting relup CG with single/compressed-8 inner\n";
+    relupSolve(inner_8, outer_8, patchup_8, result_o_8, src_o,
+	       outer_tol, relup_delta_8c, HermOpEOC8_f, HermOpEO, FrbGrid_f);
+    
+    std::cout << "Starting relup CG with single/half inner\n";      
+    relupSolve(inner_half, outer_half, patchup_half, result_o_half, src_o,
+	       outer_tol, relup_delta_half, HermOpEOhalf_f, HermOpEO, FrbGrid_f);
+     
+    std::cout << "Starting relup CG with single/single inner\n";
+    relupSolve(inner_full, outer_full, patchup_full, result_o_full, src_o,
+	       outer_tol, relup_delta_full, HermOpEO_f, HermOpEO, FrbGrid_f);
+
+  }else if(algorithm == PrecCG){
+    std::cout << "Starting sloppy pCG with single/compressed-16 inner\n";    
+    precCGsolve(inner_16, outer_16, result_o_16, src_o,
+		outer_tol, inner_tol_16c, HermOpEOC16_f, HermOpEO, FrbGrid_f);
+    
+    std::cout << "Starting sloppy pCG with single/compressed-8 inner\n";    
+    precCGsolve(inner_8, outer_8, result_o_8, src_o,
+		outer_tol, inner_tol_8c, HermOpEOC8_f, HermOpEO, FrbGrid_f);
+
+    std::cout << "Starting sloppy pCG with single/half inner\n";
+    precCGsolve(inner_half, outer_half, result_o_half, src_o,
+		outer_tol, inner_tol_half, HermOpEOhalf_f, HermOpEO, FrbGrid_f);
+     
+    std::cout << "Starting sloppy pCG with single/single inner\n";    
+    precCGsolve(inner_full, outer_full, result_o_full, src_o,
+		outer_tol, inner_tol_full, HermOpEO_f, HermOpEO, FrbGrid_f);
+
+  }else{
+    assert(0);
+  }
+
+
+  std::cout << "Ls " << Ls << std::endl;
+  std::cout << "Mass " << mass << std::endl;
+  std::cout << "Outer tolerance " << outer_tol << std::endl;
+
+  if(algorithm == MixedCG || algorithm == PrecCG){
+    std::cout << "Inner tol full " << inner_tol_full << std::endl;
+    std::cout << "Inner tol 1/2 prec " << inner_tol_half << std::endl;
+    std::cout << "Inner tol compressed-16 " << inner_tol_16c << std::endl;
+    std::cout << "Inner tol compressed-8 " << inner_tol_8c << std::endl;
       
-      std::cout << "Starting relup CG with single/compressed-8 inner\n";
-      {
-	ConjugateGradientReliableUpdate<LatticeFermionD,LatticeFermionF> relup(outer_tol, 2000, relup_delta_8c, FrbGrid_f, HermOpEOC8_f, HermOpEO);
-	relup.ErrorOnNoConverge = false;
-	relup(src_o,result_o_8);
-	inner_8 = relup.IterationsToComplete; outer_8 = relup.ReliableUpdatesPerformed; patchup_8 = relup.IterationsToCleanup;     
-      }
-      
-      std::cout << "Starting relup CG with single/half inner\n";      
-      {
-	ConjugateGradientReliableUpdate<LatticeFermionD,LatticeFermionF> relup(outer_tol, 2000, relup_delta_half, FrbGrid_f, HermOpEOhalf_f, HermOpEO);
-	relup(src_o,result_o_half);
-	inner_half = relup.IterationsToComplete; outer_half = relup.ReliableUpdatesPerformed; patchup_half = relup.IterationsToCleanup;
-      }
-      
-      std::cout << "Starting relup CG with single/single inner\n";
-      {
-	ConjugateGradientReliableUpdate<LatticeFermionD,LatticeFermionF> relup(outer_tol, 2000, relup_delta_full, FrbGrid_f, HermOpEO_f, HermOpEO);
-	relup(src_o,result_o_full);
-	inner_full = relup.IterationsToComplete; outer_full = relup.ReliableUpdatesPerformed; patchup_full = relup.IterationsToCleanup;
-      }
-    }else if(algorithm == PrecCG){
-      std::cout << "Starting sloppy pCG with single/compressed-16 inner\n";    
-      {
-	SloppyConjugateGradientLowerPrecPreconditioner<LatticeFermionD,LatticeFermionF> prec(HermOpEOC16_f, FrbGrid_f, inner_tol_16c, 1000);
-	InexactPreconditionedConjugateGradient<LatticeFermionD> CG(prec, outer_tol, 100);
-	CG(HermOpEO,src_o,result_o_16);
-	inner_16 = prec.InnerIterations; outer_16 = CG.IterationsToComplete;
-      }
-      
-      std::cout << "Starting sloppy pCG with single/compressed-8 inner\n";    
-      {
-	SloppyConjugateGradientLowerPrecPreconditioner<LatticeFermionD,LatticeFermionF> prec(HermOpEOC8_f, FrbGrid_f, inner_tol_8c, 1000);
-	InexactPreconditionedConjugateGradient<LatticeFermionD> CG(prec, outer_tol, 100);
-	CG(HermOpEO,src_o,result_o_8);
-	inner_8 = prec.InnerIterations; outer_8 = CG.IterationsToComplete;
-      }
+    if(algorithm == MixedCG)
+      std::cout << "Outer loop norm mult " << outer_loop_norm_mult << std::endl;
 
-      std::cout << "Starting sloppy pCG with single/half inner\n";    
-      {
-	SloppyConjugateGradientLowerPrecPreconditioner<LatticeFermionD,LatticeFermionF> prec(HermOpEOhalf_f, FrbGrid_f, inner_tol_half, 1000);
-	InexactPreconditionedConjugateGradient<LatticeFermionD> CG(prec, outer_tol, 100);
-	CG(HermOpEO,src_o,result_o_half);
-	inner_half = prec.InnerIterations; outer_half = CG.IterationsToComplete;
-      }
-      
-      std::cout << "Starting sloppy pCG with single/single inner\n";    
-      {
-	SloppyConjugateGradientLowerPrecPreconditioner<LatticeFermionD,LatticeFermionF> prec(HermOpEO_f, FrbGrid_f, inner_tol_full, 1000);
-	InexactPreconditionedConjugateGradient<LatticeFermionD> CG(prec, outer_tol, 100);
-	CG(HermOpEO,src_o,result_o_full);
-	inner_full = prec.InnerIterations; outer_full = CG.IterationsToComplete;
-      }
-    }else{
-      assert(0);
-    }
+  }else if(algorithm == ReliableUpdate){
+    std::cout << "Relup delta full " << relup_delta_full << std::endl;
+    std::cout << "Relup delta 1/2 prec " << relup_delta_half << std::endl;
+    std::cout << "Relup delta compressed-16 " << relup_delta_16c << std::endl;
+    std::cout << "Relup delta compressed-8 " << relup_delta_8c << std::endl;
+  }
 
+  LatticeFermionD diff_o(FrbGrid);
+  RealD diff = axpy_norm(diff_o, -1.0, result_o_16, result_o_full);
+  std::cout << "Diff between results (s/c16): " << diff << std::endl;
 
-    std::cout << "Ls " << Ls << std::endl;
-    std::cout << "Mass " << mass << std::endl;
-    std::cout << "Outer tolerance " << outer_tol << std::endl;
+  diff = axpy_norm(diff_o, -1.0, result_o_8, result_o_full);
+  std::cout << "Diff between results (s/c8): " << diff << std::endl;
 
-    if(algorithm == MixedCG || algorithm == PrecCG){
-      std::cout << "Inner tol full " << inner_tol_full << std::endl;
-      std::cout << "Inner tol 1/2 prec " << inner_tol_half << std::endl;
-      std::cout << "Inner tol compressed-16 " << inner_tol_16c << std::endl;
-      std::cout << "Inner tol compressed-8 " << inner_tol_8c << std::endl;
-      
-      if(algorithm == MixedCG)
-	std::cout << "Outer loop norm mult " << outer_loop_norm_mult << std::endl;
+  diff = axpy_norm(diff_o, -1.0, result_o_half, result_o_full);
+  std::cout << "Diff between results (s/h): " << diff << std::endl;
 
-    }else if(algorithm == ReliableUpdate){
-      std::cout << "Relup delta full " << relup_delta_full << std::endl;
-      std::cout << "Relup delta 1/2 prec " << relup_delta_half << std::endl;
-      std::cout << "Relup delta compressed-16 " << relup_delta_16c << std::endl;
-      std::cout << "Relup delta compressed-8 " << relup_delta_8c << std::endl;
-    }
-
-    LatticeFermionD diff_o(FrbGrid);
-    RealD diff = axpy_norm(diff_o, -1.0, result_o_16, result_o_full);
-    std::cout << "Diff between results (s/c16): " << diff << std::endl;
-
-    diff = axpy_norm(diff_o, -1.0, result_o_8, result_o_full);
-    std::cout << "Diff between results (s/c8): " << diff << std::endl;
-
-    diff = axpy_norm(diff_o, -1.0, result_o_half, result_o_full);
-    std::cout << "Diff between results (s/h): " << diff << std::endl;
-
-    if(algorithm == MixedCG || algorithm == ReliableUpdate){
-      std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << " patchup: " << patchup_16 << std::endl;
-      std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << " patchup: " << patchup_8 << std::endl;
-      std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << " patchup: " << patchup_half << std::endl;
-      std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << " patchup: " << patchup_full << std::endl;
-    }else if(algorithm == PrecCG){
-      std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << std::endl;
-      std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << std::endl;
-      std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << std::endl;
-      std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << std::endl;
-    }
+  if(algorithm == MixedCG || algorithm == ReliableUpdate){
+    std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << " patchup: " << patchup_16 << std::endl;
+    std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << " patchup: " << patchup_8 << std::endl;
+    std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << " patchup: " << patchup_half << std::endl;
+    std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << " patchup: " << patchup_full << std::endl;
+  }else if(algorithm == PrecCG){
+    std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << std::endl;
+    std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << std::endl;
+    std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << std::endl;
+    std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << std::endl;
   }
 
   Grid_finalize();
