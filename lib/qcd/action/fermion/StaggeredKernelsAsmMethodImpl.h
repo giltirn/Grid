@@ -1,13 +1,13 @@
 /*************************************************************************************
 
-    Grid physics library, www.github.com/paboyle/Grid
+    Grid physics library, www.github.com/paboyle/Grid 
 
-    Source file: ./lib/qcd/action/fermion/WilsonCloverFermion.cc
+    Source file: ./lib/qcd/action/fermion/StaggerdKernelsHand.cc
 
-    Copyright (C) 2017
+    Copyright (C) 2015
 
-    Author: paboyle <paboyle@ph.ed.ac.uk>
-    Author: Guido Cossu <guido.cossu@ed.ac.uk>
+Author: Peter Boyle <paboyle@ph.ed.ac.uk>
+Author: paboyle <paboyle@ph.ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,16 +25,20 @@
 
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
-/*  END LEGAL */
+    /*  END LEGAL */
+#include <Grid.h>
 
-#include <Grid/qcd/action/fermion/WilsonCloverFermionMethodImpl.h>
+namespace Grid {
+namespace QCD {
 
-namespace Grid{
-namespace QCD{
-
-    FermOpTemplateInstantiate(WilsonCloverFermion);
-    AdjointFermOpTemplateInstantiate(WilsonCloverFermion);
-    TwoIndexFermOpTemplateInstantiate(WilsonCloverFermion);
-    //GparityFermOpTemplateInstantiate(WilsonCloverFermion);
+template <class Impl>
+void StaggeredKernels<Impl>::DhopSiteAsm(StencilImpl &st, LebesgueOrder &lo, 
+					 DoubledGaugeField &U, DoubledGaugeField &UUU,
+					 SiteSpinor *buf, int LLs, int sU, 
+					 const FermionField &in, FermionField &out,int dag) 
+{
+  assert(0);
+};
 
 }}
+

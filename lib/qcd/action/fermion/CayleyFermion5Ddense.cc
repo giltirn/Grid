@@ -29,99 +29,11 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     *************************************************************************************/
     /*  END LEGAL */
 
-#include <Grid/Grid_Eigen_Dense.h>
-#include <Grid/qcd/action/fermion/FermionCore.h>
-#include <Grid/qcd/action/fermion/CayleyFermion5D.h>
+#include <Grid/qcd/action/fermion/CayleyFermion5DdenseMethodImpl.h>
 
 
 namespace Grid {
 namespace QCD {
-  /*
-   * Dense matrix versions of routines
-   */
-template<class Impl>
-void CayleyFermion5D<Impl>::MooeeInvDag (const FermionField &psi, FermionField &chi)
-{
-  this->MooeeInternal(psi,chi,DaggerYes,InverseYes);
-}
-template<class Impl>
-void CayleyFermion5D<Impl>::MooeeInv(const FermionField &psi, FermionField &chi)
-{
-  this->MooeeInternal(psi,chi,DaggerNo,InverseYes);
-}
-
-template<class Impl>
-void CayleyFermion5D<Impl>::MooeeInternal(const FermionField &psi, FermionField &chi,int dag, int inv)
-{
-  int Ls=this->Ls;
-  int LLs = psi._grid->_rdimensions[0];
-  int vol = psi._grid->oSites()/LLs;
-  
-  chi.checkerboard=psi.checkerboard;
-  
-  assert(Ls==LLs);
-  
-  Eigen::MatrixXd Pplus  = Eigen::MatrixXd::Zero(Ls,Ls);
-  Eigen::MatrixXd Pminus = Eigen::MatrixXd::Zero(Ls,Ls);
-  
-  for(int s=0;s<Ls;s++){
-    Pplus(s,s) = bee[s];
-    Pminus(s,s)= bee[s];
-  }
-  
-  for(int s=0;s<Ls-1;s++){
-    Pminus(s,s+1) = -cee[s];
-  }
-  
-  for(int s=0;s<Ls-1;s++){
-    Pplus(s+1,s) = -cee[s+1];
-  }
-  Pplus (0,Ls-1) = mass*cee[0];
-  Pminus(Ls-1,0) = mass*cee[Ls-1];
-  
-  Eigen::MatrixXd PplusMat ;
-  Eigen::MatrixXd PminusMat;
-  
-  if ( inv ) {
-    PplusMat =Pplus.inverse();
-    PminusMat=Pminus.inverse();
-  } else { 
-    PplusMat =Pplus;
-    PminusMat=Pminus;
-  }
-  
-  if(dag){
-    PplusMat.adjointInPlace();
-    PminusMat.adjointInPlace();
-  }
-
-  // For the non-vectorised s-direction this is simple
-  
-  for(auto site=0;site<vol;site++){
-    
-    SiteSpinor     SiteChi;
-    SiteHalfSpinor SitePplus;
-    SiteHalfSpinor SitePminus;
-    
-    for(int s1=0;s1<Ls;s1++){
-      SiteChi =zero;
-      for(int s2=0;s2<Ls;s2++){
-	int lex2 = s2+Ls*site;
-	
-	if ( PplusMat(s1,s2) != 0.0 ) {
-	  spProj5p(SitePplus,psi[lex2]);
-	  accumRecon5p(SiteChi,PplusMat (s1,s2)*SitePplus);
-	}
-	
-	if ( PminusMat(s1,s2) != 0.0 ) {
-	  spProj5m(SitePminus,psi[lex2]);
-	  accumRecon5m(SiteChi,PminusMat(s1,s2)*SitePminus);
-	}
-      }
-      chi[s1+Ls*site] = SiteChi*0.5;
-    }
-  }
-}
 
 #ifdef CAYLEY_DPERP_DENSE
 INSTANTIATE_DPERP(GparityWilsonImplF);

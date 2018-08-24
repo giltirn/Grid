@@ -30,99 +30,10 @@ See the full license in the file "LICENSE" in the top level distribution directo
 *************************************************************************************/
 /*  END LEGAL */
 
-#include <Grid/Grid_Eigen_Dense.h>
-#include <Grid/qcd/action/fermion/FermionCore.h>
-#include <Grid/qcd/action/fermion/DomainWallEOFAFermion.h>
+#include <Grid/qcd/action/fermion/DomainWallEOFAFermiondenseMethodImpl.h>
 
 namespace Grid {
 namespace QCD {
-
-    /*
-    * Dense matrix versions of routines
-    */
-    template<class Impl>
-    void DomainWallEOFAFermion<Impl>::MooeeInvDag(const FermionField& psi, FermionField& chi)
-    {
-        this->MooeeInternal(psi, chi, DaggerYes, InverseYes);
-    }
-
-    template<class Impl>
-    void DomainWallEOFAFermion<Impl>::MooeeInv(const FermionField& psi, FermionField& chi)
-    {
-        this->MooeeInternal(psi, chi, DaggerNo, InverseYes);
-    }
-
-    template<class Impl>
-    void DomainWallEOFAFermion<Impl>::MooeeInternal(const FermionField& psi, FermionField& chi, int dag, int inv)
-    {
-        int Ls = this->Ls;
-        int LLs = psi._grid->_rdimensions[0];
-        int vol = psi._grid->oSites()/LLs;
-
-        chi.checkerboard = psi.checkerboard;
-
-        assert(Ls==LLs);
-
-        Eigen::MatrixXd Pplus  = Eigen::MatrixXd::Zero(Ls,Ls);
-        Eigen::MatrixXd Pminus = Eigen::MatrixXd::Zero(Ls,Ls);
-
-        for(int s=0;s<Ls;s++){
-            Pplus(s,s)  = this->bee[s];
-            Pminus(s,s) = this->bee[s];
-        }
-
-        for(int s=0; s<Ls-1; s++){
-            Pminus(s,s+1) = -this->cee[s];
-        }
-
-        for(int s=0; s<Ls-1; s++){
-            Pplus(s+1,s) = -this->cee[s+1];
-        }
-
-        Pplus (0,Ls-1) = this->dp;
-        Pminus(Ls-1,0) = this->dm;
-
-        Eigen::MatrixXd PplusMat ;
-        Eigen::MatrixXd PminusMat;
-
-        if(inv) {
-            PplusMat  = Pplus.inverse();
-            PminusMat = Pminus.inverse();
-        } else {
-            PplusMat  = Pplus;
-            PminusMat = Pminus;
-        }
-
-        if(dag){
-            PplusMat.adjointInPlace();
-            PminusMat.adjointInPlace();
-        }
-
-        // For the non-vectorised s-direction this is simple
-
-        for(auto site=0; site<vol; site++){
-
-            SiteSpinor     SiteChi;
-            SiteHalfSpinor SitePplus;
-            SiteHalfSpinor SitePminus;
-
-            for(int s1=0; s1<Ls; s1++){
-                SiteChi = zero;
-                for(int s2=0; s2<Ls; s2++){
-                    int lex2 = s2 + Ls*site;
-                    if(PplusMat(s1,s2) != 0.0){
-                        spProj5p(SitePplus,psi[lex2]);
-                        accumRecon5p(SiteChi, PplusMat(s1,s2)*SitePplus);
-                    }
-                    if(PminusMat(s1,s2) != 0.0){
-                        spProj5m(SitePminus, psi[lex2]);
-                        accumRecon5m(SiteChi, PminusMat(s1,s2)*SitePminus);
-                    }
-                }
-                chi[s1+Ls*site] = SiteChi*0.5;
-            }
-        }
-    }
 
     #ifdef DOMAIN_WALL_EOFA_DPERP_DENSE
 

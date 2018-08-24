@@ -30,76 +30,10 @@ Author: Guido Cossu <guido.cossu@ed.ac.uk>
 *************************************************************************************/
 /*  END LEGAL */
 
-#include <Grid/qcd/action/fermion/FermionCore.h>
+#include <Grid/qcd/action/fermion/WilsonKernelsAsmMethodImpl.h>
 
 namespace Grid {
 namespace QCD {
-
-
-///////////////////////////////////////////////////////////
-// Default to no assembler implementation
-///////////////////////////////////////////////////////////
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					     int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					     int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-template<class Impl> void 
-WilsonKernels<Impl >::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U,SiteHalfSpinor *buf,
-					     int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out)
-{
-  assert(0);
-}
-
-#include <qcd/action/fermion/WilsonKernelsAsmAvx512.h>
-#include <qcd/action/fermion/WilsonKernelsAsmQPX.h>
-
-#define INSTANTIATE_ASM(A)\
-template void WilsonKernels<A>::AsmDhopSite(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
- \
-template void WilsonKernels<A>::AsmDhopSiteDag(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
-template void WilsonKernels<A>::AsmDhopSiteInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
- \
-template void WilsonKernels<A>::AsmDhopSiteDagInt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
-template void WilsonKernels<A>::AsmDhopSiteExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
- \
-template void WilsonKernels<A>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder & lo,DoubledGaugeField &U, SiteHalfSpinor *buf,\
-                                  int ss,int ssU,int Ls,int Ns,const FermionField &in, FermionField &out);\
 
 INSTANTIATE_ASM(WilsonImplF);
 INSTANTIATE_ASM(WilsonImplD);

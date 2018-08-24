@@ -26,7 +26,8 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
-#include <Grid.h>
+
+#include <Grid/qcd/action/fermion/StaggeredKernelsAsmMethodImpl.h>
 
 #ifdef AVX512
 #include <simd/Intel512common.h>
@@ -615,16 +616,6 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
 
 namespace Grid {
 namespace QCD {
-
-template <class Impl>
-void StaggeredKernels<Impl>::DhopSiteAsm(StencilImpl &st, LebesgueOrder &lo, 
-					 DoubledGaugeField &U, DoubledGaugeField &UUU,
-					 SiteSpinor *buf, int LLs, int sU, 
-					 const FermionField &in, FermionField &out,int dag) 
-{
-  assert(0);
-};
-
 
 //#define CONDITIONAL_MOVE(l,o,out) if ( l ) { out = (uint64_t) &in._odata[o] ; } else { out =(uint64_t) &buf[o]; }
 
