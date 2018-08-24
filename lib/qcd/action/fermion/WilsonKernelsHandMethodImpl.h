@@ -610,3 +610,23 @@ template void WilsonKernels<A>::HandDhopSiteDagExt(StencilImpl &st,LebesgueOrder
 						   int ss,int sU,const FermionField &in, FermionField &out); 
 
 }}
+
+#undef LOAD_CHIMU
+#undef LOAD_CHI
+#undef XP_RECON
+#undef XP_RECON_ACCUM
+#undef XM_RECON
+#undef XM_RECON_ACCUM
+#undef YP_RECON
+#undef YP_RECON_ACCUM
+#undef YM_RECON
+#undef YM_RECON_ACCUM
+#undef ZP_RECON
+#undef ZP_RECON_ACCUM
+#undef ZM_RECON
+#undef ZM_RECON_ACCUM
+#undef TP_RECON
+#undef TP_RECON_ACCUM
+#undef TM_RECON
+#undef TM_RECON_ACCUM
+#undef MULT_2SPIN

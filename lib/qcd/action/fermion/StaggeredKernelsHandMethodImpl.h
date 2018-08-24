@@ -386,7 +386,8 @@ void StaggeredKernels<Impl>::DhopSiteHandExt(StencilImpl &st, LebesgueOrder &lo,
   template void StaggeredKernels<IMPL>::DhopSiteHandExt(StencilImpl &st, LebesgueOrder &lo, \
 						     DoubledGaugeField &U,DoubledGaugeField &UUU, \
 						     SiteSpinor *buf, int LLs, int sU, \
-						     const FermionField &in, FermionField &out, int dag); \
+						     const FermionField &in, FermionField &out, int dag); 
+
 }
 }
 
