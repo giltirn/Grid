@@ -31,6 +31,10 @@ Author: Andrew Lawson <andrew.lawson1991@gmail.com>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
+
+#ifndef GRID_QCD_WILSON_FERMION_5D_METHOD_IMPL_H
+#define GRID_QCD_WILSON_FERMION_5D_METHOD_IMPL_H
+
 #include <Grid/qcd/action/fermion/FermionCore.h>
 #include <Grid/qcd/action/fermion/WilsonFermion5D.h>
 #include <Grid/perfmon/PerfCount.h>
@@ -862,5 +866,5 @@ void WilsonFermion5D<Impl>::SeqConservedCurrent(PropagatorField &q_in,
 
 }}
 
-
+#endif
 

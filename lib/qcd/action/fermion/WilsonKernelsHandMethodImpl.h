@@ -26,6 +26,10 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
+
+#ifndef GRID_QCD_WILSON_KERNELS_HAND_METHOD_IMPL_H
+#define GRID_QCD_WILSON_KERNELS_HAND_METHOD_IMPL_H
+
 #include <Grid/qcd/action/fermion/FermionCore.h>
 
 #define REGISTER
@@ -630,3 +634,5 @@ template void WilsonKernels<A>::HandDhopSiteDagExt(StencilImpl &st,LebesgueOrder
 #undef TM_RECON
 #undef TM_RECON_ACCUM
 #undef MULT_2SPIN
+
+#endif

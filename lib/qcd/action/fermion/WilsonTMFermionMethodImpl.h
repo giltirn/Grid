@@ -25,6 +25,10 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
+
+#ifndef GRID_QCD_WILSON_TM_FERMION_METHOD_IMPL_H
+#define GRID_QCD_WILSON_TM_FERMION_METHOD_IMPL_H
+
 #include <Grid/qcd/action/fermion/FermionCore.h>
 #include <Grid/qcd/action/fermion/WilsonTMFermion.h>
 
@@ -95,3 +99,4 @@ namespace QCD {
 
 }
 }
+#endif

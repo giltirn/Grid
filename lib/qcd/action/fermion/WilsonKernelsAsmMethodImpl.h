@@ -30,6 +30,9 @@ Author: Guido Cossu <guido.cossu@ed.ac.uk>
 *************************************************************************************/
 /*  END LEGAL */
 
+#ifndef GRID_QCD_WILSON_KERNELS_ASM_METHOD_IMPL_H
+#define GRID_QCD_WILSON_KERNELS_ASM_METHOD_IMPL_H
+
 #include <Grid/qcd/action/fermion/FermionCore.h>
 
 namespace Grid {
@@ -103,3 +106,4 @@ template void WilsonKernels<A>::AsmDhopSiteDagExt(StencilImpl &st,LebesgueOrder 
 
 }}
 
+#endif

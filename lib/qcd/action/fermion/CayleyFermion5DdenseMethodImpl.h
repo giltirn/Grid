@@ -29,6 +29,9 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     *************************************************************************************/
     /*  END LEGAL */
 
+#ifndef GRID_QCD_CAYLEY_FERMION_5D_DENSE_METHOD_IMPL_H
+#define GRID_QCD_CAYLEY_FERMION_5D_DENSE_METHOD_IMPL_H
+
 #include <Grid/Grid_Eigen_Dense.h>
 #include <Grid/qcd/action/fermion/FermionCore.h>
 #include <Grid/qcd/action/fermion/CayleyFermion5D.h>
@@ -124,3 +127,5 @@ void CayleyFermion5D<Impl>::MooeeInternal(const FermionField &psi, FermionField 
 }
 
 }}
+
+#endif

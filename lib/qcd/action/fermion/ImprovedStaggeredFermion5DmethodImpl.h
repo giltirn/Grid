@@ -26,6 +26,10 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
+
+#ifndef GRID_QCD_IMPROVED_STAGGERED_FERMION_5D_METHOD_IMPL_H
+#define GRID_QCD_IMPROVED_STAGGERED_FERMION_5D_METHOD_IMPL_H
+
 #include <Grid/qcd/action/fermion/FermionCore.h>
 #include <Grid/qcd/action/fermion/ImprovedStaggeredFermion5D.h>
 #include <Grid/perfmon/PerfCount.h>
@@ -641,5 +645,6 @@ void ImprovedStaggeredFermion5D<Impl>::SeqConservedCurrent(PropagatorField &q_in
  
 }}
 
+#endif
 
 

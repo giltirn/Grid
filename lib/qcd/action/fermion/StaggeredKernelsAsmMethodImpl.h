@@ -26,6 +26,10 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
     See the full license in the file "LICENSE" in the top level distribution directory
     *************************************************************************************/
     /*  END LEGAL */
+
+#ifndef GRID_QCD_STAGGERED_KERNELS_ASM_METHOD_IMPL_H
+#define GRID_QCD_STAGGERED_KERNELS_ASM_METHOD_IMPL_H
+
 #include <Grid.h>
 
 namespace Grid {
@@ -42,3 +46,4 @@ void StaggeredKernels<Impl>::DhopSiteAsm(StencilImpl &st, LebesgueOrder &lo,
 
 }}
 
+#endif
