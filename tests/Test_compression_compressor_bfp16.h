@@ -1,5 +1,5 @@
-#ifndef TEST_COMPRESSION_COMPRESSOR_FIXEDPOINT_H_
-#define TEST_COMPRESSION_COMPRESSOR_FIXEDPOINT_H_
+#ifndef TEST_COMPRESSION_COMPRESSOR_BFP16_H
+#define TEST_COMPRESSION_COMPRESSOR_BFP16_H
 
 #include <Grid/Grid.h>
 
@@ -8,29 +8,25 @@
 namespace Grid{
 namespace QCD{
 
-//Pack and unpack float/double to fixed point representation of SZ bits
-template<int SZ>
-struct signedIntMap{};
+  
+//bfp16 is a 16-bit floating point rep with 1 sign bit, 8 exponent bits and 7 mantissa bits
 
-template<>
-struct signedIntMap<8>{ typedef int8_t type; };
-template<>
-struct signedIntMap<16>{ typedef int16_t type; };
-
-
-template<typename T, int SZ>
-inline typename signedIntMap<SZ>::type packN(T val){
-  return typename signedIntMap<SZ>::type( (1<<(SZ-2) ) * val );
-}
-template<typename T, int SZ>
-inline T unpackN(typename signedIntMap<SZ>::type val){
-  return T(val)/(1<<(SZ-2));
+inline int16_t bfp16pack(float val){
+  assert(isLittleEndian());
+  int16_t out;
+  memcpy(&out, ((char const*)&val) + 2, 2);
+  return out;
 }
 
+inline float bfp16unpack(int16_t val){
+  int32_t v32 = int32_t(val) << 16;
+  return *( (float const*)&v32 );
+}
+ 
 
 //Compressor that compresses to a single magnitude and Nhs*Dimension fixed point integers of size packSize bits
-template<class _Hspinor,class _Spinor, class projector, int packSize = 16>
-class WilsonCompressorFixedPointTemplate
+template<class _Hspinor,class _Spinor, class projector>
+class WilsonCompressorBfp16template
 {
  public:
   
@@ -38,7 +34,7 @@ class WilsonCompressorFixedPointTemplate
 
   void Point(int p) { mu=p; };
 
-  WilsonCompressorFixedPointTemplate(int _dag=0){
+  WilsonCompressorBfp16template(int _dag=0){
     dag = _dag;
   }
 
@@ -56,39 +52,28 @@ class WilsonCompressorFixedPointTemplate
   typedef typename ScalarSiteHalfSpinor::scalar_type stype; //std::complex
   typedef typename stype::value_type srtype; //float/double
 
+  typedef uint16_t packedType;
+
   //Pack and unpack *scalar* SiteHalfSpinor objects
   void packSpinor(void* tov, const ScalarSiteHalfSpinor &from){
-    uint8_t* to = (uint8_t*)tov;
-    typedef typename signedIntMap<packSize>::type packedType;
-
-    srtype max = 0;
-    for(int s=0;s<Nhs;s++)
-      for(int c=0;c<Dimension;c++)
-	for(int reim=0;reim<2;reim++)
-	  if(fabs(cmplx_reim( from()(s)(c), reim )) > max )
-	    max =  fabs(cmplx_reim( from()(s)(c), reim )) ;
-  
-    *( (srtype*)to ) = max; //copy the normalization to the buffer
-    to += sizeof(srtype);
-  
-    packedType *top = (packedType*)to;
+    packedType* to = (packedType*)tov;
     packedType p;
     srtype q;
     for(int s=0;s<Nhs;s++)
       for(int c=0;c<Dimension;c++)
 	for(int reim=0;reim<2;reim++){
 	  q = cmplx_reim( from()(s)(c), reim );
-	  if(max != 0.) q /= max;
-	  *(top++) = packN<srtype,packSize>(q);
+	  *(to++) = bfp16pack(q);
 	}
   }
 
+  //Vectorized version, store contiguously
   void packSpinor(void* tov, const SiteHalfSpinor &from){
-    uint8_t* to = (uint8_t*)tov;
+    packedType* to = (packedType*)tov;
     std::vector<ScalarSiteHalfSpinor> extracted(Nsimd);
     extract(from,extracted);
 
-    static const int incr = sizeof(srtype) + Nhs*Dimension*2*sizeof(typename signedIntMap<packSize>::type);
+    static const int incr = Nhs*Dimension*2;
 
     for(int i=0;i<Nsimd;i++){
       packSpinor((void*)to, extracted[i]);
@@ -98,28 +83,19 @@ class WilsonCompressorFixedPointTemplate
 
 
   void unpackSpinor(ScalarSiteHalfSpinor &to, void* fromv){
-    uint8_t* from = (uint8_t*)fromv;
-    typedef typename signedIntMap<packSize>::type packedType;
+    packedType* from = (packedType*)fromv;
 
-    srtype norm = *( (srtype*)from ); 
-    from += sizeof(srtype);
-
-    packedType *fromp = (packedType*)from;
-    srtype q;
     for(int s=0;s<Nhs;s++)
       for(int c=0;c<Dimension;c++)
-	for(int reim=0;reim<2;reim++){
-	  q = unpackN<srtype,packSize>(*(fromp++) );
-	  if(norm != 0.) q *= norm;
-	  cmplx_reim( to()(s)(c), reim ) = q;
-	}
+	for(int reim=0;reim<2;reim++)
+	  cmplx_reim( to()(s)(c), reim ) = bfp16unpack( *(from++) );	
   }
 
   void unpackSpinor(SiteHalfSpinor &to, void* fromv){
-    uint8_t* from = (uint8_t*)fromv;
+    packedType* from = (packedType*)fromv;
     std::vector<ScalarSiteHalfSpinor> unpacked(Nsimd);
 
-    static const int incr = sizeof(srtype) + Nhs*Dimension*2*sizeof(typename signedIntMap<packSize>::type);
+    static const int incr = Nhs*Dimension*2;
 
     for(int i=0;i<Nsimd;i++){
       unpackSpinor(unpacked[i],(void*)from);
@@ -130,7 +106,7 @@ class WilsonCompressorFixedPointTemplate
   }
 
   inline int CommDatumSize(void) {
-    return Nsimd*(  sizeof(srtype) + Nhs*Dimension*2*sizeof(typename signedIntMap<packSize>::type) );
+    return Nsimd*(  Nhs*Dimension*2*sizeof(packedType) );
   }
 
   /*****************************************************/

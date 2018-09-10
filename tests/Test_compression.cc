@@ -27,7 +27,17 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
     /*  END LEGAL */
 #include<bitset>
 #include <Grid/Grid.h>
+
+#include <Grid/qcd/action/fermion/CayleyFermion5DmethodImpl.h>
+#include <Grid/qcd/action/fermion/CayleyFermion5DcacheMethodImpl.h>
+#include <Grid/qcd/action/fermion/WilsonFermion5DmethodImpl.h>
+#include <Grid/qcd/action/fermion/WilsonKernelsMethodImpl.h>
+#include <Grid/qcd/action/fermion/WilsonKernelsHandMethodImpl.h>
+#include <Grid/qcd/action/fermion/WilsonKernelsAsmMethodImpl.h>
+
+
 #include "Test_compression_operator_fixedpointcomms.h"
+#include "Test_compression_operator_bfp16.h"
 
 using namespace std;
 using namespace Grid;
@@ -130,12 +140,14 @@ int main (int argc, char ** argv)
   RealD inner_tol_half = 1e-5;
   RealD inner_tol_16c = 1e-5;
   RealD inner_tol_8c = 1e-5;
+  RealD inner_tol_bfp16 = 1e-5;
   RealD outer_loop_norm_mult = 100.;
 
   RealD relup_delta_full = 0.1;
   RealD relup_delta_half = 0.1;
   RealD relup_delta_16c = 0.1;
   RealD relup_delta_8c = 0.1;
+  RealD relup_delta_bfp16 = 0.1;
 
   std::string config_file = "";
 
@@ -155,11 +167,13 @@ int main (int argc, char ** argv)
       PARSEIT(inner_tol_half);
       PARSEIT(inner_tol_16c);
       PARSEIT(inner_tol_8c);
+      PARSEIT(inner_tol_bfp16);
       PARSEIT(outer_loop_norm_mult);
       PARSEIT(relup_delta_full);
       PARSEIT(relup_delta_half);
       PARSEIT(relup_delta_16c);
       PARSEIT(relup_delta_8c);
+      PARSEIT(relup_delta_bfp16);
 #undef PARSEIT
 
       //f >> outer_tol >> inner_tol_full >> inner_tol_half >> inner_tol_16c >> inner_tol_8c;      
@@ -218,9 +232,10 @@ int main (int argc, char ** argv)
   LatticeFermionD result_o_half(FrbGrid);
   LatticeFermionD result_o_16(FrbGrid);
   LatticeFermionD result_o_8(FrbGrid);
+  LatticeFermionD result_o_bfp16(FrbGrid);
   result_o_full.checkerboard = Odd;
   result_o_full = zero;
-  result_o_16 = result_o_8 = result_o_half = result_o_full;
+  result_o_bfp16 = result_o_16 = result_o_8 = result_o_half = result_o_full;
 
   //Std
   DomainWallFermionD Ddwf(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5);
@@ -241,10 +256,17 @@ int main (int argc, char ** argv)
   DomainWallFermionFixedPointComms8F DdwfC8_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
   SchurDiagMooeeOperator<DomainWallFermionFixedPointComms8F,LatticeFermionF> HermOpEOC8_f(DdwfC8_f);
 
+  //bfp16
+  DomainWallFermionBfp16commsF Ddwfbfp16_f(Umu_f,*FGrid_f,*FrbGrid_f,*UGrid_f,*UrbGrid_f,mass,M5);
+  SchurDiagMooeeOperator<DomainWallFermionBfp16commsF,LatticeFermionF> HermOpEObfp16_f(Ddwfbfp16_f);
+
+
+
   Integer inner_16, outer_16, patchup_16;
   Integer inner_8, outer_8, patchup_8;
   Integer inner_half, outer_half, patchup_half;
   Integer inner_full, outer_full, patchup_full;
+  Integer inner_bfp16, outer_bfp16, patchup_bfp16;
 
   if(algorithm == MixedCG){
     std::cout << "Starting mixed CG with single/compressed-16 inner\n";
@@ -263,6 +285,11 @@ int main (int argc, char ** argv)
     mixedPrecSolve(inner_full, outer_full, patchup_full, result_o_full, src_o,
 		   outer_tol, inner_tol_full, outer_loop_norm_mult, HermOpEO_f, HermOpEO, FrbGrid_f);
 
+    std::cout << "Starting mixed CG with single/bfp16 inner\n";    
+    mixedPrecSolve(inner_bfp16, outer_bfp16, patchup_bfp16, result_o_bfp16, src_o,
+		   outer_tol, inner_tol_bfp16, outer_loop_norm_mult, HermOpEObfp16_f, HermOpEO, FrbGrid_f);
+
+
   }else if(algorithm == ReliableUpdate){
     std::cout << "Starting relup CG with single/compressed-16 inner\n";    
     relupSolve(inner_16, outer_16, patchup_16, result_o_16, src_o,
@@ -279,6 +306,11 @@ int main (int argc, char ** argv)
     std::cout << "Starting relup CG with single/single inner\n";
     relupSolve(inner_full, outer_full, patchup_full, result_o_full, src_o,
 	       outer_tol, relup_delta_full, HermOpEO_f, HermOpEO, FrbGrid_f);
+
+    std::cout << "Starting relup CG with single/bfp16 inner\n";
+    relupSolve(inner_bfp16, outer_bfp16, patchup_bfp16, result_o_bfp16, src_o,
+	       outer_tol, relup_delta_bfp16, HermOpEObfp16_f, HermOpEO, FrbGrid_f);
+
 
   }else if(algorithm == PrecCG){
     std::cout << "Starting sloppy pCG with single/compressed-16 inner\n";    
@@ -297,6 +329,10 @@ int main (int argc, char ** argv)
     precCGsolve(inner_full, outer_full, result_o_full, src_o,
 		outer_tol, inner_tol_full, HermOpEO_f, HermOpEO, FrbGrid_f);
 
+    std::cout << "Starting sloppy pCG with single/bfp16 inner\n";    
+    precCGsolve(inner_bfp16, outer_bfp16, result_o_bfp16, src_o,
+		outer_tol, inner_tol_bfp16, HermOpEObfp16_f, HermOpEO, FrbGrid_f);
+
   }else{
     assert(0);
   }
@@ -311,6 +347,7 @@ int main (int argc, char ** argv)
     std::cout << "Inner tol 1/2 prec " << inner_tol_half << std::endl;
     std::cout << "Inner tol compressed-16 " << inner_tol_16c << std::endl;
     std::cout << "Inner tol compressed-8 " << inner_tol_8c << std::endl;
+    std::cout << "Inner tol bfp16 " << inner_tol_bfp16 << std::endl;
       
     if(algorithm == MixedCG)
       std::cout << "Outer loop norm mult " << outer_loop_norm_mult << std::endl;
@@ -320,6 +357,7 @@ int main (int argc, char ** argv)
     std::cout << "Relup delta 1/2 prec " << relup_delta_half << std::endl;
     std::cout << "Relup delta compressed-16 " << relup_delta_16c << std::endl;
     std::cout << "Relup delta compressed-8 " << relup_delta_8c << std::endl;
+    std::cout << "Relup delta bfp16 " << relup_delta_bfp16 << std::endl;
   }
 
   LatticeFermionD diff_o(FrbGrid);
@@ -332,16 +370,21 @@ int main (int argc, char ** argv)
   diff = axpy_norm(diff_o, -1.0, result_o_half, result_o_full);
   std::cout << "Diff between results (s/h): " << diff << std::endl;
 
+  diff = axpy_norm(diff_o, -1.0, result_o_bfp16, result_o_full);
+  std::cout << "Diff between results (s/bfp16): " << diff << std::endl;
+
   if(algorithm == MixedCG || algorithm == ReliableUpdate){
     std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << " patchup: " << patchup_16 << std::endl;
     std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << " patchup: " << patchup_8 << std::endl;
     std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << " patchup: " << patchup_half << std::endl;
     std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << " patchup: " << patchup_full << std::endl;
-  }else if(algorithm == PrecCG){
+    std::cout << "Iterations (s/bfp16) inner: " << inner_bfp16 << " outer: " << outer_bfp16 << " patchup: " << patchup_bfp16 << std::endl; 
+ }else if(algorithm == PrecCG){
     std::cout << "Iterations (s/c16) inner: " << inner_16 << " outer: " << outer_16 << std::endl;
     std::cout << "Iterations (s/c8) inner: " << inner_8 << " outer: " << outer_8 << std::endl;
     std::cout << "Iterations (s/h) inner: " << inner_half << " outer: " << outer_half << std::endl;
     std::cout << "Iterations (s/s) inner: " << inner_full << " outer: " << outer_full << std::endl;
+    std::cout << "Iterations (s/bfp16) inner: " << inner_bfp16 << " outer: " << outer_bfp16 << std::endl;
   }
 
   Grid_finalize();

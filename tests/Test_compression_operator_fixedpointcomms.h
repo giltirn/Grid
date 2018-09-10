@@ -59,15 +59,15 @@ typedef WilsonFixedPointCommsImpl<vComplexD,16> WilsonFixedPointComms16ImplD;
 
 }}
 
-#define TO_INSTANTIATE \
-  DOIT(WilsonFixedPointComms8ImplF)\
-  DOIT(WilsonFixedPointComms8ImplD)\
-  DOIT(WilsonFixedPointComms16ImplF)\
-  DOIT(WilsonFixedPointComms16ImplD)
+/* #define TO_INSTANTIATE \ */
+/*   DOIT(WilsonFixedPointComms8ImplF)\ */
+/*   DOIT(WilsonFixedPointComms8ImplD)\ */
+/*   DOIT(WilsonFixedPointComms16ImplF)\ */
+/*   DOIT(WilsonFixedPointComms16ImplD) */
 
-#include "Test_compression_instantiateImpl.h"
+/* #include "Test_compression_instantiateImpl.h" */
 
-#undef TO_INSTANTIATE
+/* #undef TO_INSTANTIATE */
 
 namespace Grid{
 namespace QCD{
