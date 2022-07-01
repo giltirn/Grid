@@ -446,8 +446,14 @@ void run(ActionType &action, const std::string &config, const Args &args){
     return run_b<200>(action,config,args);
   case 250:
     return run_b<250>(action,config,args);
+  case 300:
+    return run_b<300>(action,config,args);
+  case 350:
+    return run_b<350>(action,config,args);
+  case 400:
+    return run_b<400>(action,config,args);
   default:
-    assert(0 && "Unsupported basis size: allowed values are 50,100,200");
+    assert(0 && "Unsupported basis size: allowed values are 50,100,200,250,300,350,400");
   }
 }
 
@@ -474,7 +480,7 @@ int main (int argc, char ** argv) {
     std::cout << GridLogMessage << "--coarse_relax_tol : Set the relaxation parameter for evaluating the residual of the reconstructed eigenvectors outside of the basis (default 1e5)" << std::endl;
     std::cout << GridLogMessage << "--action : Set the action from 'DWF', 'Mobius'  (default Mobius)" << std::endl;
     std::cout << GridLogMessage << "--mobius_scale : Set the Mobius scale b+c (default 2)" << std::endl;
-    std::cout << GridLogMessage << "--basis_size : Set the basis size from 50,100,150,200,250 (default 100)" << std::endl;
+    std::cout << GridLogMessage << "--basis_size : Set the basis size from 50,100,150,200,250,300,350,400 (default 100)" << std::endl;
 
     Grid_finalize();
     return 1;
