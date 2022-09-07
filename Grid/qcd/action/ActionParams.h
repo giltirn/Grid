@@ -40,6 +40,15 @@ struct GparityWilsonImplParams {
                      //mu=Nd-1 is assumed to be the time direction and a twist value of 1 indicates antiperiodic BCs
   GparityWilsonImplParams() : twists(Nd, 0) {};
 };
+
+struct XconjWilsonImplParams {
+  Coordinate twists; //Here the first Nd-1 directions are treated as "spatial", and a twist value of 1 indicates G-parity BCs in that direction. 
+                     //mu=Nd-1 is assumed to be the time direction and a twist value of 1 indicates antiperiodic BCs
+  ComplexD boundary_phase; //+1 for X-conjugate, -1 for Xbar-conjugate, or other
+  XconjWilsonImplParams() : twists(Nd, 0), boundary_phase(1.0) {};
+};
+
+
   
 struct WilsonImplParams {
   bool overlapCommsCompute;
