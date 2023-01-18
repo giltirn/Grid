@@ -645,6 +645,16 @@ NAMESPACE_BEGIN(Grid);
   HAND_STENCIL_LEG_EXT(TM_PROJ,0,Tm,TM_RECON_ACCUM,F,LOAD_CHI_IMPL,LOAD_CHIMU_IMPL,MULT_2SPIN_IMPL); \
   HAND_RESULT_EXT(ss,F)
 
+
+//For Sycl, currently need to define a hacked hand-implementation of the kernel for Grid to compile
+#define HAND_SPECIALISE_GPARITY_SYCL_HACK(IMPL)                                 \
+  template<> accelerator_inline void                            \
+  WilsonKernels<IMPL>::HandDhopSiteSycl(StencilVector st_perm,StencilEntry *st_p, SiteDoubledGaugeField *U,SiteHalfSpinor  *buf, \
+                                        int ss,int sU,const SiteSpinor *in, SiteSpinor *out) \
+  {                                                                     \
+    assert(0 && "Not implemented");                                     \
+  }
+
 #define HAND_SPECIALISE_GPARITY(IMPL)					\
   template<> accelerator_inline void						\
   WilsonKernels<IMPL>::HandDhopSite(StencilView &st, DoubledGaugeFieldView &U,SiteHalfSpinor  *buf, \

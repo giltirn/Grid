@@ -249,14 +249,20 @@ inline int  acceleratorIsCommunicable(void *ptr)
 //////////////////////////////////////////////
 #ifdef GRID_SYCL
 NAMESPACE_END(Grid);
-#include <CL/sycl.hpp>
-#include <CL/sycl/usm.hpp>
+
+//#include <CL/sycl.hpp> //#doesn't work
+#include <sycl/CL/sycl.hpp>
+
+//#include <CL/sycl/usm.hpp> //#doesn't work
+#include <sycl/usm.hpp>
 
 #define GRID_SYCL_LEVEL_ZERO_IPC
 
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
 #include <level_zero/ze_api.h>
-#include <CL/sycl/backend/level_zero.hpp>
+//#include <CL/sycl/backend/level_zero.hpp> //#doesn't work
+//#include <sycl/backend/level_zero.hpp> // #works but gives warnings
+#include <sycl/ext/oneapi/backend/level_zero.hpp> //#no warnings
 #endif
 NAMESPACE_BEGIN(Grid);
 
