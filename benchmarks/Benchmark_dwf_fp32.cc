@@ -49,7 +49,6 @@ int main (int argc, char ** argv)
 {
   Grid_init(&argc,&argv);
 
-
   int threads = GridThread::GetThreads();
 
   int Ls=16;
@@ -112,7 +111,7 @@ int main (int argc, char ** argv)
   Dirichlet[4] = CommDim[3]*latt4[3]/mpi[3];
   
   Benchmark(Ls,Dirichlet);
-
+  
   Grid_finalize();
   exit(0);
 }
