@@ -37,6 +37,7 @@ NAMESPACE_BEGIN(Grid);
     // Generic rational approximation for ratios of operators utilizing the mixed precision multishift algorithm
     // cf. GeneralEvenOddRational.h for details
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      
     template<class ImplD, class ImplF>
     class GeneralEvenOddRatioRationalMixedPrecPseudoFermionAction : public GeneralEvenOddRatioRationalPseudoFermionAction<ImplD> {
     private:
@@ -81,8 +82,6 @@ NAMESPACE_BEGIN(Grid);
 	ConjugateGradientMultiShiftMixedPrecCleanup<FermionFieldD, FermionFieldF> msCG(MaxIter, approx, NumOpF.FermionRedBlackGrid(), schurOpF, ReliableUpdateFreq);
 	msCG(schurOpD, in, out_elems, out);
       }
-
-	
       //Allow derived classes to override the gauge import
       virtual void ImportGauge(const typename ImplD::GaugeField &Ud){
 
