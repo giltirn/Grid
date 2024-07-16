@@ -216,9 +216,10 @@ void acceleratorInit(void)
   int nDevices = 1;
   cl::sycl::gpu_selector selector;
   cl::sycl::device selectedDevice { selector };
-  theGridAccelerator = new sycl::queue (selectedDevice);
-  //  theCopyAccelerator = new sycl::queue (selectedDevice);
-  theCopyAccelerator = theGridAccelerator; // Should proceed concurrenlty anyway.
+
+  //Ensure consistent behavior across HIP/CUDA/SYCL by using separate FIFO queues
+  theGridAccelerator = new sycl::queue (selectedDevice, sycl::property_list{sycl::property::queue::in_order{}});
+  theCopyAccelerator = new sycl::queue (theGridAccelerator->get_context(), selectedDevice, sycl::property_list{sycl::property::queue::in_order{}});
 
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
   zeInit(0);

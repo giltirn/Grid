@@ -37,10 +37,10 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 using namespace std;
 using namespace Grid;
 
-typedef typename GparityMobiusFermionR::FermionField FermionField2f;
-typedef typename XconjugateMobiusFermionR::FermionField FermionField1f;
+typedef typename GparityMobiusFermionD::FermionField FermionField2f;
+typedef typename XconjugateMobiusFermionD::FermionField FermionField1f;
 
-void invertGparity(std::vector<FermionField2f> &out, GparityMobiusFermionR &action){
+void invertGparity(std::vector<FermionField2f> &out, GparityMobiusFermionD &action){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -194,7 +194,7 @@ void peekSpinColorFlavorColumn(FermionField2f &into, const SCFmatrixField&from, 
 
 
 
-void invertXconj2d(std::vector<FermionField2f> &out, GparityMobiusFermionR &action){
+void invertXconj2d(std::vector<FermionField2f> &out, GparityMobiusFermionD &action){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -287,7 +287,7 @@ void invertXconj2d(std::vector<FermionField2f> &out, GparityMobiusFermionR &acti
 
 
 
-void invertXconj1d(std::vector<FermionField2f> &out, XconjugateMobiusFermionR &action){
+void invertXconj1d(std::vector<FermionField2f> &out, XconjugateMobiusFermionD &action){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -382,7 +382,7 @@ T mulURight(const T &in){
 
 
 
-void invertXconj1d_matrix(std::vector<FermionField2f> &out, XconjugateMobiusFermionR &action){
+void invertXconj1d_matrix(std::vector<FermionField2f> &out, XconjugateMobiusFermionD &action){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -460,7 +460,7 @@ void invertXconj1d_matrix(std::vector<FermionField2f> &out, XconjugateMobiusFerm
 //Use the full 2x2 G-parity Dirac op inverted on a complex source with flavor structure
 // |\phi   0     |
 // | 0    \phi^* |
-void invertGparityComplexSrc(std::vector<FermionField2f> &out, GparityMobiusFermionR &action, ComplexD phi){
+void invertGparityComplexSrc(std::vector<FermionField2f> &out, GparityMobiusFermionD &action, ComplexD phi){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -501,7 +501,7 @@ void invertGparityComplexSrc(std::vector<FermionField2f> &out, GparityMobiusFerm
 }
 
 //Do the same as the above but with the X-conjugate Dirac op
-void invertXconj1dComplexSrc(std::vector<FermionField2f> &out, XconjugateMobiusFermionR &action, ComplexD phi){
+void invertXconj1dComplexSrc(std::vector<FermionField2f> &out, XconjugateMobiusFermionD &action, ComplexD phi){
   GridBase* UGrid = action.GaugeGrid();
   GridBase* FGrid = action.FermionGrid();
   GridBase* FrbGrid = action.FermionRedBlackGrid();
@@ -618,16 +618,16 @@ int main (int argc, char ** argv)
   std::vector<int> twists({1,1,1,0});
   params.twists = twists;
     
-  GparityMobiusFermionR reg_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,params);
+  GparityMobiusFermionD reg_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,params);
 
-  XconjugateMobiusFermionR::ImplParams xparams;
+  XconjugateMobiusFermionD::ImplParams xparams;
   xparams.twists = twists;
   xparams.boundary_phase = 1.0;
   
-  XconjugateMobiusFermionR xconj_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,xparams);
+  XconjugateMobiusFermionD xconj_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,xparams);
 
   xparams.boundary_phase = -1.0;
-  XconjugateMobiusFermionR xbarconj_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,xparams);
+  XconjugateMobiusFermionD xbarconj_action(Umu,*FGrid,*FrbGrid,*UGrid,*UrbGrid,mass,M5,mob_b,mob_b-1.,xparams);
 
   FermionField2f tmp2f(UGrid);
   std::cout.precision(12);
