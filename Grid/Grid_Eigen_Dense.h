@@ -25,6 +25,7 @@
 #undef __CUDA_ARCH__
 #undef __NVCC__
 #undef __CUDACC__
+#define EIGEN_DONT_VECTORIZE  //CK THIS IS NECESSARY FOR CUDA12.2/GCC12.3.0 combo, possibly others, else you get compile errors with some fp16 intrinsics collisions from nvcc
 #define __NVCC__REDEFINE__
 #endif 
 
