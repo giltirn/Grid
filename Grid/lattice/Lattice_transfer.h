@@ -1494,7 +1494,7 @@ void precisionChange(Lattice<VobjOut> &out, const Lattice<VobjIn> &in){
  *  etc...
  */
 template<class Vobj>
-void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
+void Grid_split(const std::vector<Lattice<Vobj> const *> & full,Lattice<Vobj>   & split)
 {
   typedef typename Vobj::scalar_object Sobj;
 
@@ -1502,7 +1502,7 @@ void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
 
   assert(full_vecs>=1);
 
-  GridBase * full_grid = full[0].Grid();
+  GridBase * full_grid = full[0]->Grid();
   GridBase *split_grid = split.Grid();
 
   int       ndim  = full_grid->_ndimension;
@@ -1512,7 +1512,7 @@ void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
   ////////////////////////////////
   // Checkerboard management
   ////////////////////////////////
-  int cb = full[0].Checkerboard();
+  int cb = full[0]->Checkerboard();
   split.Checkerboard() = cb;
 
   //////////////////////////////
@@ -1520,10 +1520,10 @@ void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
   //////////////////////////////
   assert(full_grid->_ndimension==split_grid->_ndimension);
   for(int n=0;n<full_vecs;n++){
-    assert(full[n].Checkerboard() == cb);
+    assert(full[n]->Checkerboard() == cb);
     for(int d=0;d<ndim;d++){
-      assert(full[n].Grid()->_gdimensions[d]==split.Grid()->_gdimensions[d]);
-      assert(full[n].Grid()->_fdimensions[d]==split.Grid()->_fdimensions[d]);
+      assert(full[n]->Grid()->_gdimensions[d]==split.Grid()->_gdimensions[d]);
+      assert(full[n]->Grid()->_fdimensions[d]==split.Grid()->_fdimensions[d]);
     }
   }
 
@@ -1543,7 +1543,7 @@ void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
   std::vector<Sobj> scalardata(lsites); 
 
   for(int v=0;v<nvector;v++){
-    unvectorizeToLexOrdArray(scalardata,full[v]);    
+    unvectorizeToLexOrdArray(scalardata,*full[v]);    
     thread_for(site,lsites,{
       alldata[v*lsites+site] = scalardata[site];
     });
@@ -1609,7 +1609,14 @@ void Grid_split(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
 }
 
 template<class Vobj>
-void Grid_split(Lattice<Vobj> &full,Lattice<Vobj>   & split)
+inline void Grid_split(const std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split){
+  std::vector<Lattice<Vobj> const*> full_p(full.size());
+  for(int i=0;i<full.size();i++) full_p[i] = &full[i];
+  return Grid_split(full_p, split);
+}
+
+template<class Vobj>
+void Grid_split(const Lattice<Vobj> &full,Lattice<Vobj>   & split)
 {
   int nvector = full.Grid()->_Nprocessors / split.Grid()->_Nprocessors;
   std::vector<Lattice<Vobj> > full_v(nvector,full.Grid());
@@ -1620,7 +1627,7 @@ void Grid_split(Lattice<Vobj> &full,Lattice<Vobj>   & split)
 }
 
 template<class Vobj>
-void Grid_unsplit(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
+void Grid_unsplit(std::vector<Lattice<Vobj>* > & full, const Lattice<Vobj>   & split)
 {
   typedef typename Vobj::scalar_object Sobj;
 
@@ -1628,7 +1635,7 @@ void Grid_unsplit(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
 
   assert(full_vecs>=1);
 
-  GridBase * full_grid = full[0].Grid();
+  GridBase * full_grid = full[0]->Grid();
   GridBase *split_grid = split.Grid();
 
   int       ndim  = full_grid->_ndimension;
@@ -1638,18 +1645,18 @@ void Grid_unsplit(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
   ////////////////////////////////
   // Checkerboard management
   ////////////////////////////////
-  int cb = full[0].Checkerboard();
-  split.Checkerboard() = cb;
+  int cb = split.Checkerboard();
+  for(int n=0;n<full_vecs;n++)
+    full[n]->Checkerboard() = cb;
 
   //////////////////////////////
   // Checks
   //////////////////////////////
   assert(full_grid->_ndimension==split_grid->_ndimension);
   for(int n=0;n<full_vecs;n++){
-    assert(full[n].Checkerboard() == cb);
     for(int d=0;d<ndim;d++){
-      assert(full[n].Grid()->_gdimensions[d]==split.Grid()->_gdimensions[d]);
-      assert(full[n].Grid()->_fdimensions[d]==split.Grid()->_fdimensions[d]);
+      assert(full[n]->Grid()->_gdimensions[d]==split.Grid()->_gdimensions[d]);
+      assert(full[n]->Grid()->_fdimensions[d]==split.Grid()->_fdimensions[d]);
     }
   }
 
@@ -1736,8 +1743,15 @@ void Grid_unsplit(std::vector<Lattice<Vobj> > & full,Lattice<Vobj>   & split)
     thread_for(site, lsites,{
       scalardata[site] = alldata[v*lsites+site];
     });
-    vectorizeFromLexOrdArray(scalardata,full[v]);    
+    vectorizeFromLexOrdArray(scalardata,*full[v]);    
   }
+}
+
+template<class Vobj>
+inline void Grid_unsplit(std::vector<Lattice<Vobj> > & full, const Lattice<Vobj> & split){
+  std::vector<Lattice<Vobj>*> full_p(full.size());
+  for(int i=0;i<full.size();i++) full_p[i] = &full[i];
+  return Grid_unsplit(full_p, split);
 }
 
 NAMESPACE_END(Grid);
