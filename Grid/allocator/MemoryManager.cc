@@ -75,9 +75,9 @@ void *MemoryManager::AcceleratorAllocate(size_t bytes)
 void  MemoryManager::AcceleratorFree    (void *ptr,size_t bytes)
 {
   total_device-=bytes;
-  void *__freeme = Insert(ptr,bytes,Acc);
-  if ( __freeme ) {
-    acceleratorFreeDevice(__freeme);
+  auto __freeme = Insert(ptr,bytes,Acc);
+  if ( __freeme.first ) {
+    acceleratorFreeDevice(__freeme.first);
   }
 #ifdef GRID_MM_VERBOSE
   std::cout <<"AcceleratorFree "<<std::endl;
@@ -100,9 +100,9 @@ void *MemoryManager::SharedAllocate(size_t bytes)
 void  MemoryManager::SharedFree    (void *ptr,size_t bytes)
 {
   total_shared-=bytes;
-  void *__freeme = Insert(ptr,bytes,Shared);
-  if ( __freeme ) {
-    acceleratorFreeShared(__freeme);
+  auto __freeme = Insert(ptr,bytes,Shared);
+  if ( __freeme.first ) {
+    acceleratorFreeShared(__freeme.first);
   }
 #ifdef GRID_MM_VERBOSE
   std::cout <<"SharedFree "<<std::endl;
@@ -142,7 +142,11 @@ void *MemoryManager::CpuAllocate(size_t bytes)
   total_host+=bytes;
   void *ptr = (void *) Lookup(bytes,Cpu);
   if ( ptr == (void *) NULL ) {
+#ifdef GRID_ALLOC_BYPASS_HEAP
+    ptr = (void *) acceleratorAllocCpuMMap(bytes);
+#else
     ptr = (void *) acceleratorAllocCpu(bytes);
+#endif
   }
 #ifdef GRID_MM_VERBOSE
   std::cout <<"CpuAllocate "<<std::endl;
@@ -154,9 +158,13 @@ void  MemoryManager::CpuFree    (void *_ptr,size_t bytes)
 {
   total_host-=bytes;
   NotifyDeletion(_ptr);
-  void *__freeme = Insert(_ptr,bytes,Cpu);
-  if ( __freeme ) { 
-    acceleratorFreeCpu(__freeme);
+  std::pair<void*,size_t> __freeme = Insert(_ptr,bytes,Cpu);
+  if ( __freeme.first ) { 
+#ifdef GRID_ALLOC_BYPASS_HEAP
+    acceleratorFreeCpuMMap(__freeme.first, __freeme.second );
+#else
+    acceleratorFreeCpu(__freeme.first );
+#endif
   }
 #ifdef GRID_MM_VERBOSE
   std::cout <<"CpuFree "<<std::endl;
@@ -245,7 +253,7 @@ void MemoryManager::InitMessage(void) {
 
 }
 
-void *MemoryManager::Insert(void *ptr,size_t bytes,int type) 
+std::pair<void*,size_t> MemoryManager::Insert(void *ptr,size_t bytes,int type) 
 {
 #ifdef ALLOCATION_CACHE
   int cache;
@@ -255,19 +263,19 @@ void *MemoryManager::Insert(void *ptr,size_t bytes,int type)
 
   return Insert(ptr,bytes,Entries[cache],Ncache[cache],Victim[cache],CacheBytes[cache]);  
 #else
-  return ptr;
+  return {ptr, bytes};
 #endif
 }
 
-void *MemoryManager::Insert(void *ptr,size_t bytes,AllocationCacheEntry *entries,int ncache,int &victim, uint64_t &cacheBytes) 
+std::pair<void*,size_t> MemoryManager::Insert(void *ptr,size_t bytes,AllocationCacheEntry *entries,int ncache,int &victim, uint64_t &cacheBytes) 
 {
 #ifdef GRID_OMP
   assert(omp_in_parallel()==0);
 #endif 
 
-  if (ncache == 0) return ptr;
+  if (ncache == 0) return {ptr, bytes};
 
-  void * ret = NULL;
+  std::pair<void*,size_t> ret({NULL,0});
   int v = -1;
 
   for(int e=0;e<ncache;e++) {
@@ -283,7 +291,8 @@ void *MemoryManager::Insert(void *ptr,size_t bytes,AllocationCacheEntry *entries
   }
 
   if ( entries[v].valid ) {
-    ret = entries[v].address;
+    ret.first = entries[v].address;
+    ret.second = entries[v].bytes;
     cacheBytes -= entries[v].bytes;
     entries[v].valid = 0;
     entries[v].address = NULL;

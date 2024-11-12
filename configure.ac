@@ -596,6 +596,14 @@ case ${ac_ALLOC_CACHE} in
     *);;
 esac
 
+AC_ARG_ENABLE([alloc-bypass-heap],[AS_HELP_STRING([--enable-alloc-bypass-heap ],[Set GRID allocator to use anonymous mmaps for host allocations, bypassing the heap])],[ac_ALLOC_BYPASS_HEAP=${enable_alloc_bypass_heap}],[ac_ALLOC_BYPASS_HEAP=no])
+case ${ac_ALLOC_BYPASS_HEAP} in
+    yes)
+     AC_DEFINE([GRID_ALLOC_BYPASS_HEAP],[1],[GRID_ALLOC_BYPASS_HEAP]);;
+    *);;
+esac
+
+
 
 #########################################################
 ######################  set GPU device to rank in node ##

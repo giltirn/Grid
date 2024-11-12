@@ -29,6 +29,7 @@ Author: paboyle <paboyle@ph.ed.ac.uk>
 #pragma once
 
 #include <string.h>
+#include <sys/mman.h>
 
 #ifdef HAVE_MALLOC_MALLOC_H
 #include <malloc/malloc.h>
@@ -513,6 +514,23 @@ inline void acceleratorFreeDevice(void *ptr){free(ptr);};
 #endif
 
 #endif // CPU target
+
+//Allocate using anonymous mmap, bypassing the heap
+inline void *acceleratorAllocCpuMMap(size_t bytes){
+  void *p = mmap (NULL, bytes, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, (off_t)0);
+  if(p == MAP_FAILED){
+    printf("acceleratorAllocCpuMMap of size %zu failed\n", bytes);
+    perror("reason");
+    assert(0);
+  }
+  return p;
+}
+inline void acceleratorFreeCpuMMap(void *ptr, size_t bytes){
+  if( munmap(ptr, bytes) != 0){
+    printf("acceleratorFreeCpuMMap of size %zu failed\n", bytes);
+    assert(0);
+  }
+}
 
 #ifdef HAVE_MM_MALLOC_H
 inline void *acceleratorAllocCpu(size_t bytes){return _mm_malloc(bytes,GRID_ALLOC_ALIGN);};

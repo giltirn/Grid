@@ -108,9 +108,9 @@ protected:
   /////////////////////////////////////////////////
   // Free pool
   /////////////////////////////////////////////////
-  static void *Insert(void *ptr,size_t bytes,int type) ;
+  static std::pair<void*,size_t> Insert(void *ptr,size_t bytes,int type) ;
   static void *Lookup(size_t bytes,int type) ;
-  static void *Insert(void *ptr,size_t bytes,AllocationCacheEntry *entries,int ncache,int &victim,uint64_t &cbytes) ;
+  static std::pair<void*,size_t> Insert(void *ptr,size_t bytes,AllocationCacheEntry *entries,int ncache,int &victim,uint64_t &cbytes) ;
   static void *Lookup(size_t bytes,AllocationCacheEntry *entries,int ncache,uint64_t &cbytes) ;
 
  public:
