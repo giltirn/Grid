@@ -359,10 +359,10 @@ int main(int argc, char **argv) {
   #define USE_FORCE_GRADIENT
   
 #ifndef USE_FORCE_GRADIENT
-  typedef ConjugateHMCRunnerD<MinimumNorm2> HMCWrapper; //NB: This is the "Omelyan integrator"
+  typedef GenericHMCRunnerD<MinimumNorm2> HMCWrapper; //NB: This is the "Omelyan integrator"
   MD.name    = std::string("MinimumNorm2");
 #else
-  typedef ConjugateHMCRunnerD<ForceGradient> HMCWrapper;
+  typedef GenericHMCRunnerD<ForceGradient> HMCWrapper;
   MD.name    = std::string("ForceGradient");
 #endif
   MD.MDsteps = user_params.Steps;
