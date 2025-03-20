@@ -159,6 +159,43 @@ public:
     o=accum;
   }
 
+  template<class obj> void GlobalSumVectorP2P(obj* data, size_t N)
+  {
+    typedef MPI_Request MpiCommsRequest_t;
+    std::vector< std::vector<obj> > column;
+    std::vector<obj> accum(N);
+    size_t bytes = N*sizeof(obj);
+
+    memcpy(accum.data(),data,bytes);
+
+    int source,dest;
+    for(int d=0;d<_ndimension;d++){
+      column.resize(_processors[d], std::vector<obj>(N));
+      column[0] = accum;
+      std::vector<MpiCommsRequest_t> list;
+      for(int p=1;p<_processors[d];p++){
+	ShiftedRanks(d,p,source,dest);
+	SendToRecvFromBegin(list,
+			    column[0].data(),
+			    dest,
+			    column[p].data(),
+			    source,
+			    bytes,d*100+p);
+
+      }
+      if (!list.empty()) // avoid triggering assert in comms == none
+	CommsComplete(list);
+      for(int p=1;p<_processors[d];p++){
+	thread_for(i,N,{
+	    accum[i] = accum[i] + column[p][i];
+	  });
+      }
+    }
+    Broadcast(0,accum.data(),bytes);
+    memcpy(data, accum.data(), bytes);
+  }
+
+
   template<class obj> void GlobalSum(obj &o){
     typedef typename obj::scalar_type scalar_type;
     int words = sizeof(obj)/sizeof(scalar_type);
