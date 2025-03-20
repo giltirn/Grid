@@ -46,8 +46,40 @@ NAMESPACE_BEGIN(Grid);
 
 #if defined (GRID_COMMS_MPI3) 
 typedef MPI_Comm    Grid_MPI_Comm;
+typedef MPI_Request MpiCommsRequest_t;
+#ifdef ACCELERATOR_AWARE_MPI
 typedef MPI_Request CommsRequest_t;
+#else
+/*
+ * Enable state transitions as each packet flows.
+ */
+enum PacketType_t {
+  FaceGather,
+  InterNodeXmit,
+  InterNodeRecv,
+  IntraNodeXmit,
+  IntraNodeRecv,
+  InterNodeXmitISend,
+  InterNodeReceiveHtoD
+};
+/*
+ *Package arguments needed for various actions along packet flow
+ */
+typedef struct {
+  PacketType_t PacketType;
+  void *host_buf;
+  void *device_buf;
+  int dest;
+  int tag;
+  int commdir;
+  unsigned long bytes;
+  acceleratorEvent_t ev;
+  MpiCommsRequest_t req;
+} CommsRequest_t;
+#endif
+
 #else 
+typedef int MpiCommsRequest_t;
 typedef int CommsRequest_t;
 typedef int Grid_MPI_Comm;
 #endif
@@ -75,7 +107,9 @@ public:
   static int           Hugepages;
 
   static std::vector<void *> WorldShmCommBufs;
-
+#ifndef ACCELERATOR_AWARE_MPI
+  static void *HostCommBuf;
+#endif
   static Grid_MPI_Comm WorldComm;
   static int           WorldRank;
   static int           WorldSize;
@@ -120,6 +154,13 @@ private:
   size_t heap_bytes;
   size_t heap_size;
 
+#ifndef ACCELERATOR_AWARE_MPI
+  size_t host_heap_top;  // set in free all
+  size_t host_heap_bytes;// set in free all
+  void *HostCommBuf;     // set in SetCommunicator
+  size_t host_heap_size; // set in SetCommunicator
+#endif
+  
 protected:
 
   Grid_MPI_Comm    ShmComm; // for barriers
@@ -151,7 +192,10 @@ public:
   void *ShmBufferTranslate(int rank,void * local_p);
   void *ShmBufferMalloc(size_t bytes);
   void  ShmBufferFreeAll(void) ;
-  
+#ifndef ACCELERATOR_AWARE_MPI
+  void *HostBufferMalloc(size_t bytes);
+  void HostBufferFreeAll(void);
+#endif  
   //////////////////////////////////////////////////////////////////////////
   // Make info on Nodes & ranks and Shared memory available
   //////////////////////////////////////////////////////////////////////////

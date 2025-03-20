@@ -118,7 +118,7 @@ accelerator_inline int acceleratorSIMTlane(int Nsimd) {
 #endif
 } // CUDA specific
 
-inline void cuda_mem(void)
+inline void acceleratorMem(void)
 {
   size_t free_t,total_t,used_t;
   cudaMemGetInfo(&free_t,&total_t);
@@ -126,17 +126,24 @@ inline void cuda_mem(void)
   std::cout << " MemoryManager : GPU used "<<used_t<<" free "<<free_t<< " total "<<total_t<<std::endl;
 }
 
+inline void cuda_mem(void)
+{
+  acceleratorMem();
+}
+
 #define accelerator_for2dNB( iter1, num1, iter2, num2, nsimd, ... )	\
   {									\
-    int nt=acceleratorThreads();					\
-    typedef uint64_t Iterator;						\
-    auto lambda = [=] accelerator					\
-      (Iterator iter1,Iterator iter2,Iterator lane) mutable {		\
-      __VA_ARGS__;							\
-    };									\
-    dim3 cu_threads(nsimd,acceleratorThreads(),1);			\
-    dim3 cu_blocks ((num1+nt-1)/nt,num2,1);				\
-    LambdaApply<<<cu_blocks,cu_threads,0,computeStream>>>(num1,num2,nsimd,lambda);	\
+    if ( num1*num2 ) {							\
+      int nt=acceleratorThreads();					\
+      typedef uint64_t Iterator;					\
+      auto lambda = [=] accelerator					\
+	(Iterator iter1,Iterator iter2,Iterator lane) mutable {		\
+		      __VA_ARGS__;					\
+		    };							\
+      dim3 cu_threads(nsimd,acceleratorThreads(),1);			\
+      dim3 cu_blocks ((num1+nt-1)/nt,num2,1);				\
+      LambdaApply<<<cu_blocks,cu_threads,0,computeStream>>>(num1,num2,nsimd,lambda); \
+    }									\
   }
 
 #define accelerator_for6dNB(iter1, num1,				\
@@ -157,6 +164,7 @@ inline void cuda_mem(void)
     dim3 cu_threads(num4,num5,num6);					\
     Lambda6Apply<<<cu_blocks,cu_threads,0,computeStream>>>(num1,num2,num3,num4,num5,num6,lambda); \
   }
+
 
 template<typename lambda>  __global__
 void LambdaApply(uint64_t num1, uint64_t num2, uint64_t num3, lambda Lambda)
@@ -202,13 +210,25 @@ void Lambda6Apply(uint64_t num1, uint64_t num2, uint64_t num3,
     }									\
   }
 
+inline void *acceleratorAllocHost(size_t bytes)
+{
+  void *ptr=NULL;
+  auto err = cudaMallocHost((void **)&ptr,bytes);
+  if( err != cudaSuccess ) {
+    ptr = (void *) NULL;
+    printf(" cudaMallocHost failed for %d %s \n",bytes,cudaGetErrorString(err));
+    assert(0);
+  }
+  return ptr;
+}
 inline void *acceleratorAllocShared(size_t bytes)
 {
   void *ptr=NULL;
   auto err = cudaMallocManaged((void **)&ptr,bytes);
   if( err != cudaSuccess ) {
     ptr = (void *) NULL;
-    printf(" cudaMallocManaged failed for %zu %s \n",bytes,cudaGetErrorString(err));
+    printf(" cudaMallocManaged failed for %d %s \n",bytes,cudaGetErrorString(err));
+    assert(0);
   }
   return ptr;
 };
@@ -222,16 +242,21 @@ inline void *acceleratorAllocDevice(size_t bytes)
   }
   return ptr;
 };
+
 inline void acceleratorFreeShared(void *ptr){ cudaFree(ptr);};
 inline void acceleratorFreeDevice(void *ptr){ cudaFree(ptr);};
-inline void acceleratorCopyToDevice(void *from,void *to,size_t bytes)  { cudaMemcpy(to,from,bytes, cudaMemcpyHostToDevice);}
-inline void acceleratorCopyFromDevice(void *from,void *to,size_t bytes){ cudaMemcpy(to,from,bytes, cudaMemcpyDeviceToHost);}
+inline void acceleratorFreeHost(void *ptr){ cudaFree(ptr);};
+inline void acceleratorCopyToDevice(const void *from,void *to,size_t bytes)  { cudaMemcpy(to,from,bytes, cudaMemcpyHostToDevice);}
+inline void acceleratorCopyFromDevice(const void *from,void *to,size_t bytes){ cudaMemcpy(to,from,bytes, cudaMemcpyDeviceToHost);}
+inline void acceleratorCopyToDeviceAsync(const void *from, void *to, size_t bytes, cudaStream_t stream = copyStream) { cudaMemcpyAsync(to,from,bytes, cudaMemcpyHostToDevice, stream);}
+inline void acceleratorCopyFromDeviceAsync(const void *from, void *to, size_t bytes, cudaStream_t stream = copyStream) { cudaMemcpyAsync(to,from,bytes, cudaMemcpyDeviceToHost, stream);}
 inline void acceleratorMemSet(void *base,int value,size_t bytes) { cudaMemset(base,value,bytes);}
-inline void acceleratorCopyDeviceToDeviceAsynch(void *from,void *to,size_t bytes) // Asynch
+inline void acceleratorCopyDeviceToDeviceAsynch(const void *from,void *to,size_t bytes) // Asynch
 {
   cudaMemcpyAsync(to,from,bytes, cudaMemcpyDeviceToDevice,copyStream);
 }
 inline void acceleratorCopySynchronise(void) { cudaStreamSynchronize(copyStream); };
+
 
 inline int  acceleratorIsCommunicable(void *ptr)
 {
@@ -254,22 +279,23 @@ inline int  acceleratorIsCommunicable(void *ptr)
 #define GRID_SYCL_LEVEL_ZERO_IPC
 
 NAMESPACE_END(Grid);
-#if 0
-#include <CL/sycl.hpp>
-#include <CL/sycl/usm.hpp>
-#include <level_zero/ze_api.h>
-#include <CL/sycl/backend/level_zero.hpp>
-#else
-#include <sycl/CL/sycl.hpp>
+
+// Force deterministic reductions
+#define SYCL_REDUCTION_DETERMINISTIC
+#include <sycl/sycl.hpp>
 #include <sycl/usm.hpp>
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#endif
 
 NAMESPACE_BEGIN(Grid);
 
-extern cl::sycl::queue *theGridAccelerator;
-extern cl::sycl::queue *theCopyAccelerator;
+inline void acceleratorMem(void)
+{
+  std::cout <<" SYCL acceleratorMem not implemented"<<std::endl;
+}
+
+extern sycl::queue *theGridAccelerator;
+extern sycl::queue *theCopyAccelerator;
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define GRID_SIMT
@@ -280,55 +306,79 @@ extern cl::sycl::queue *theCopyAccelerator;
 
 accelerator_inline int acceleratorSIMTlane(int Nsimd) {
 #ifdef GRID_SIMT
- return __spirv::initLocalInvocationId<3, cl::sycl::id<3>>()[2]; 
+ return __spirv::initLocalInvocationId<3, sycl::id<3>>()[2]; 
 #else
  return 0;
 #endif
 } // SYCL specific
 
 #define accelerator_for2dNB( iter1, num1, iter2, num2, nsimd, ... )	\
-  theGridAccelerator->submit([&](cl::sycl::handler &cgh) {		\
-      unsigned long nt=acceleratorThreads();				\
-      unsigned long unum1 = num1;					\
-      unsigned long unum2 = num2;					\
-      if(nt < 8)nt=8;							\
-      unsigned long unum1_use = ((unum1 + nt - 1)/nt) * nt     ; /*round up s.t. divisible by nt*/ \
-      cl::sycl::range<3> local {nt,1,nsimd};				\
-      cl::sycl::range<3> global{unum1_use,unum2,nsimd};			\
-      cgh.parallel_for(					\
-      cl::sycl::nd_range<3>(global,local), \
-      [=] (cl::sycl::nd_item<3> item) /*mutable*/     \
-      [[intel::reqd_sub_group_size(16)]]	      \
-      {						      \
-      auto iter1    = item.get_global_id(0);	      \
-      auto iter2    = item.get_global_id(1);	      \
-      auto lane     = item.get_global_id(2);	      \
-      if(iter1<unum1){ __VA_ARGS__ };		      \
-     });	   			              \
-    });
+  theGridAccelerator->submit([&](sycl::handler &cgh) {		\
+    unsigned long nt=acceleratorThreads();				\
+    if(nt < 8)nt=8;							\
+    unsigned long unum1 = num1;						\
+    unsigned long unum2 = num2;						\
+    unsigned long unum1_divisible_by_nt = ((unum1 + nt - 1) / nt) * nt;	\
+    sycl::range<3> local {nt,1,nsimd};				\
+    sycl::range<3> global{unum1_divisible_by_nt,unum2,nsimd};	\
+    cgh.parallel_for(							\
+		     sycl::nd_range<3>(global,local),			\
+		     [=] (sycl::nd_item<3> item) /*mutable*/		\
+		     [[intel::reqd_sub_group_size(16)]]			\
+		     {							\
+		       auto iter1    = item.get_global_id(0);		\
+		       auto iter2    = item.get_global_id(1);		\
+		       auto lane     = item.get_global_id(2);		\
+		       { if (iter1 < unum1){ __VA_ARGS__ } };		\
+		     });						\
+  });
 
 #define accelerator_barrier(dummy) { theGridAccelerator->wait(); }
 
 inline void *acceleratorAllocShared(size_t bytes){ return malloc_shared(bytes,*theGridAccelerator);};
+inline void *acceleratorAllocHost(size_t bytes)  { return malloc_host(bytes,*theGridAccelerator);};
 inline void *acceleratorAllocDevice(size_t bytes){ return malloc_device(bytes,*theGridAccelerator);};
+inline void acceleratorFreeHost(void *ptr){free(ptr,*theGridAccelerator);};
 inline void acceleratorFreeShared(void *ptr){free(ptr,*theGridAccelerator);};
 inline void acceleratorFreeDevice(void *ptr){free(ptr,*theGridAccelerator);};
 
 inline void acceleratorCopySynchronise(void) {  theCopyAccelerator->wait(); }
-inline void acceleratorCopyDeviceToDeviceAsynch(void *from,void *to,size_t bytes)  {  theCopyAccelerator->memcpy(to,from,bytes);}
-inline void acceleratorCopyToDevice(void *from,void *to,size_t bytes)  { theCopyAccelerator->memcpy(to,from,bytes); theCopyAccelerator->wait();}
-inline void acceleratorCopyFromDevice(void *from,void *to,size_t bytes){ theCopyAccelerator->memcpy(to,from,bytes); theCopyAccelerator->wait();}
+
+
+///////
+// Asynch event interface
+///////
+typedef sycl::event acceleratorEvent_t;
+
+inline void acceleratorEventWait(acceleratorEvent_t ev)
+{
+  ev.wait();
+}
+
+inline int acceleratorEventIsComplete(acceleratorEvent_t ev)
+{
+  return (ev.get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete);
+}
+
+inline acceleratorEvent_t acceleratorCopyDeviceToDeviceAsynch(const void *from,void *to,size_t bytes)  { return theCopyAccelerator->memcpy(to,from,bytes);}
+inline acceleratorEvent_t acceleratorCopyToDeviceAsynch(const void *from,void *to,size_t bytes)        { return theCopyAccelerator->memcpy(to,from,bytes); }
+inline acceleratorEvent_t acceleratorCopyFromDeviceAsynch(const void *from,void *to,size_t bytes)      { return theCopyAccelerator->memcpy(to,from,bytes); }
+
+inline void acceleratorCopyToDevice(const void *from,void *to,size_t bytes)  { theCopyAccelerator->memcpy(to,from,bytes); theCopyAccelerator->wait();}
+inline void acceleratorCopyFromDevice(const void *from,void *to,size_t bytes){ theCopyAccelerator->memcpy(to,from,bytes); theCopyAccelerator->wait();}
 inline void acceleratorMemSet(void *base,int value,size_t bytes) { theCopyAccelerator->memset(base,value,bytes); theCopyAccelerator->wait();}
 
 inline int  acceleratorIsCommunicable(void *ptr)
 {
 #if 0
-  auto uvm = cl::sycl::usm::get_pointer_type(ptr, theGridAccelerator->get_context());
-  if ( uvm = cl::sycl::usm::alloc::shared ) return 1;
+  auto uvm = sycl::usm::get_pointer_type(ptr, theGridAccelerator->get_context());
+  if ( uvm = sycl::usm::alloc::shared ) return 1;
   else return 0;
 #endif
   return 1;
+
 }
+
 
 #endif
 
@@ -346,6 +396,15 @@ NAMESPACE_BEGIN(Grid);
 
 #define accelerator        __host__ __device__
 #define accelerator_inline __host__ __device__ inline
+
+inline void acceleratorMem(void)
+{
+  size_t free_t,total_t,used_t;
+  auto discard = hipMemGetInfo(&free_t,&total_t);
+  used_t=total_t-free_t;
+  std::cout << " MemoryManager : GPU used "<<used_t<<" free "<<free_t<< " total "<<total_t<<std::endl;
+}
+
 
 extern hipStream_t copyStream;
 extern hipStream_t computeStream;
@@ -407,7 +466,7 @@ void LambdaApply(uint64_t numx, uint64_t numy, uint64_t numz, lambda Lambda)
 
 #define accelerator_barrier(dummy)				\
   {								\
-    auto r=hipStreamSynchronize(computeStream);			\
+    auto tmp=hipStreamSynchronize(computeStream);		\
     auto err = hipGetLastError();				\
     if ( err != hipSuccess ) {					\
       printf("After hipDeviceSynchronize() : HIP error %s \n", hipGetErrorString( err )); \
@@ -417,13 +476,23 @@ void LambdaApply(uint64_t numx, uint64_t numy, uint64_t numz, lambda Lambda)
     }								\
   }
 
+inline void *acceleratorAllocHost(size_t bytes)
+{
+  void *ptr=NULL;
+  auto err = hipMallocHost((void **)&ptr,bytes);
+  if( err != hipSuccess ) {
+    ptr = (void *) NULL;
+    fprintf(stderr," hipMallocManaged failed for %ld %s \n",bytes,hipGetErrorString(err)); fflush(stderr);
+  }
+  return ptr;
+};
 inline void *acceleratorAllocShared(size_t bytes)
 {
   void *ptr=NULL;
   auto err = hipMallocManaged((void **)&ptr,bytes);
   if( err != hipSuccess ) {
     ptr = (void *) NULL;
-    printf(" hipMallocManaged failed for %ld %s \n",bytes,hipGetErrorString(err));
+    fprintf(stderr," hipMallocManaged failed for %ld %s \n",bytes,hipGetErrorString(err)); fflush(stderr);
   }
   return ptr;
 };
@@ -435,26 +504,39 @@ inline void *acceleratorAllocDevice(size_t bytes)
   auto err = hipMalloc((void **)&ptr,bytes);
   if( err != hipSuccess ) {
     ptr = (void *) NULL;
-    printf(" hipMalloc failed for %ld %s \n",bytes,hipGetErrorString(err));
+    fprintf(stderr," hipMalloc failed for %ld %s \n",bytes,hipGetErrorString(err)); fflush(stderr);
   }
   return ptr;
 };
 
-inline void acceleratorFreeShared(void *ptr){ auto r=hipFree(ptr);};
-inline void acceleratorFreeDevice(void *ptr){ auto r=hipFree(ptr);};
-inline void acceleratorCopyToDevice(void *from,void *to,size_t bytes)  { auto r=hipMemcpy(to,from,bytes, hipMemcpyHostToDevice);}
-inline void acceleratorCopyFromDevice(void *from,void *to,size_t bytes){ auto r=hipMemcpy(to,from,bytes, hipMemcpyDeviceToHost);}
-//inline void acceleratorCopyDeviceToDeviceAsynch(void *from,void *to,size_t bytes)  { hipMemcpy(to,from,bytes, hipMemcpyDeviceToDevice);}
-//inline void acceleratorCopySynchronise(void) {  }
-inline void acceleratorMemSet(void *base,int value,size_t bytes) { auto r=hipMemset(base,value,bytes);}
+inline void acceleratorFreeHost(void *ptr){ auto discard=hipFree(ptr);};
+inline void acceleratorFreeShared(void *ptr){ auto discard=hipFree(ptr);};
+inline void acceleratorFreeDevice(void *ptr){ auto discard=hipFree(ptr);};
+inline void acceleratorCopyToDevice(const void *from,void *to,size_t bytes)  { auto discard=hipMemcpy(to,from,bytes, hipMemcpyHostToDevice);}
+inline void acceleratorCopyFromDevice(const void *from,void *to,size_t bytes){ auto discard=hipMemcpy(to,from,bytes, hipMemcpyDeviceToHost);}
 
-inline void acceleratorCopyDeviceToDeviceAsynch(void *from,void *to,size_t bytes) // Asynch
+inline void acceleratorMemSet(void *base,int value,size_t bytes) { auto discard=hipMemset(base,value,bytes);}
+
+inline void acceleratorCopyDeviceToDeviceAsynch(const void *from,void *to,size_t bytes) // Asynch
 {
-  auto r=hipMemcpyDtoDAsync(to,from,bytes, copyStream);
+  auto discard=hipMemcpyDtoDAsync(to,from,bytes, copyStream);
 }
-inline void acceleratorCopySynchronise(void) { auto r=hipStreamSynchronize(copyStream); };
+inline void acceleratorCopyToDeviceAsync(const void *from, void *to, size_t bytes, hipStream_t stream = copyStream) {
+  auto r = hipMemcpyAsync(to,from,bytes, hipMemcpyHostToDevice, stream);
+}
+inline void acceleratorCopyFromDeviceAsync(const void *from, void *to, size_t bytes, hipStream_t stream = copyStream) {
+  auto r = hipMemcpyAsync(to,from,bytes, hipMemcpyDeviceToHost, stream);
+}
+inline void acceleratorCopySynchronise(void) { auto discard=hipStreamSynchronize(copyStream); };
 
 #endif
+
+inline void acceleratorPin(void *ptr,unsigned long bytes)
+{
+#ifdef GRID_SYCL
+  sycl::ext::oneapi::experimental::prepare_for_device_copy(ptr,bytes,theCopyAccelerator->get_context());
+#endif
+}
 
 //////////////////////////////////////////////
 // Common on all GPU targets
@@ -483,7 +565,15 @@ inline void acceleratorCopySynchronise(void) { auto r=hipStreamSynchronize(copyS
 
 #undef GRID_SIMT
 
-
+inline void acceleratorMem(void)
+{
+  /*
+    struct rusage rusage;
+    getrusage( RUSAGE_SELF, &rusage );
+    return (size_t)rusage.ru_maxrss;
+  */
+  std::cout <<" system acceleratorMem not implemented"<<std::endl;
+}
 
 #define accelerator 
 #define accelerator_inline strong_inline
@@ -494,16 +584,18 @@ inline void acceleratorCopySynchronise(void) { auto r=hipStreamSynchronize(copyS
 
 accelerator_inline int acceleratorSIMTlane(int Nsimd) { return 0; } // CUDA specific
 
-inline void acceleratorCopyToDevice(void *from,void *to,size_t bytes)  { thread_bcopy(from,to,bytes); }
-inline void acceleratorCopyFromDevice(void *from,void *to,size_t bytes){ thread_bcopy(from,to,bytes);}
-inline void acceleratorCopyDeviceToDeviceAsynch(void *from,void *to,size_t bytes)  { thread_bcopy(from,to,bytes);}
+inline void acceleratorCopyToDevice(const void *from,void *to,size_t bytes)  { thread_bcopy(from,to,bytes); }
+inline void acceleratorCopyFromDevice(const void *from,void *to,size_t bytes){ thread_bcopy(from,to,bytes);}
+inline void acceleratorCopyDeviceToDeviceAsynch(const void *from,void *to,size_t bytes)  { thread_bcopy(from,to,bytes);}
 inline void acceleratorCopySynchronise(void) {};
 
 inline int  acceleratorIsCommunicable(void *ptr){ return 1; }
 inline void acceleratorMemSet(void *base,int value,size_t bytes) { memset(base,value,bytes);}
 #ifdef HAVE_MM_MALLOC_H
+inline void *acceleratorAllocHost(size_t bytes){return _mm_malloc(bytes,GRID_ALLOC_ALIGN);};
 inline void *acceleratorAllocShared(size_t bytes){return _mm_malloc(bytes,GRID_ALLOC_ALIGN);};
 inline void *acceleratorAllocDevice(size_t bytes){return _mm_malloc(bytes,GRID_ALLOC_ALIGN);};
+inline void acceleratorFreeHost(void *ptr){_mm_free(ptr);};
 inline void acceleratorFreeShared(void *ptr){_mm_free(ptr);};
 inline void acceleratorFreeDevice(void *ptr){_mm_free(ptr);};
 #else
@@ -594,11 +686,24 @@ accelerator_inline void acceleratorFence(void)
   return;
 }
 
-inline void acceleratorCopyDeviceToDevice(void *from,void *to,size_t bytes)
+inline void acceleratorCopyDeviceToDevice(const void *from,void *to,size_t bytes)
 {
   acceleratorCopyDeviceToDeviceAsynch(from,to,bytes);
   acceleratorCopySynchronise();
 }
+
+template<class T> void acceleratorPut(T& dev,const T&host)
+{
+  acceleratorCopyToDevice((void *)&host,&dev,sizeof(T));
+}
+template<class T> T acceleratorGet(T& dev)
+{
+  T host;
+  acceleratorCopyFromDevice(&dev,&host,sizeof(T));
+  return host;
+}
+
+
 
 
 NAMESPACE_END(Grid);

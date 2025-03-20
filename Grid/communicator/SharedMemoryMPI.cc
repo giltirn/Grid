@@ -46,9 +46,16 @@ Author: Christoph Lehner <christoph@lhnr.de>
 #include <hip/hip_runtime_api.h>
 #endif
 #ifdef GRID_SYCL
+#ifdef ACCELERATOR_AWARE_MPI
 #define GRID_SYCL_LEVEL_ZERO_IPC
+#define SHM_SOCKETS
+#else
+#ifdef HAVE_NUMAIF_H
+  #warning " Using NUMAIF "
+#include <numaif.h>
+#endif 
+#endif 
 #include <syscall.h>
-#define SHM_SOCKETS 
 #endif
 
 #include <sys/socket.h>
@@ -519,46 +526,6 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
 // Hugetlbfs mapping intended
 ////////////////////////////////////////////////////////////////////////////////////////////
 #if defined(GRID_CUDA) ||defined(GRID_HIP)  || defined(GRID_SYCL)
-
-//if defined(GRID_SYCL)
-#if 0
-void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
-{
-  void * ShmCommBuf ; 
-  assert(_ShmSetup==1);
-  assert(_ShmAlloc==0);
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // allocate the pointer array for shared windows for our group
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////
-  MPI_Barrier(WorldShmComm);
-  WorldShmCommBufs.resize(WorldShmSize);
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Each MPI rank should allocate our own buffer
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-  ShmCommBuf = acceleratorAllocDevice(bytes);
-
-  if (ShmCommBuf == (void *)NULL ) {
-    std::cerr << " SharedMemoryMPI.cc acceleratorAllocDevice failed NULL pointer for " << bytes<<" bytes " << std::endl;
-    exit(EXIT_FAILURE);  
-  }
-
-  std::cout << WorldRank << Mheader " SharedMemoryMPI.cc acceleratorAllocDevice "<< bytes 
-	    << "bytes at "<< std::hex<< ShmCommBuf <<std::dec<<" for comms buffers " <<std::endl;
-
-  SharedMemoryZero(ShmCommBuf,bytes);
-
-  assert(WorldShmSize == 1);
-  for(int r=0;r<WorldShmSize;r++){
-    WorldShmCommBufs[r] = ShmCommBuf;
-  }
-  _ShmAllocBytes=bytes;
-  _ShmAlloc=1;
-}
-#endif
-
-#if defined(GRID_CUDA) ||defined(GRID_HIP) ||defined(GRID_SYCL)  
 void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
 {
   void * ShmCommBuf ; 
@@ -581,6 +548,40 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Each MPI rank should allocate our own buffer
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+#ifndef ACCELERATOR_AWARE_MPI
+  // printf("Host buffer allocate for GPU non-aware MPI\n");
+#if 0
+  HostCommBuf= acceleratorAllocHost(bytes);
+#else 
+  HostCommBuf= malloc(bytes); /// CHANGE THIS TO malloc_host
+#ifdef HAVE_NUMAIF_H
+  #warning "Moving host buffers to specific NUMA domain"
+  int numa;
+  char *numa_name=(char *)getenv("MPI_BUF_NUMA");
+  if(numa_name) {
+    unsigned long page_size = sysconf(_SC_PAGESIZE);
+    numa = atoi(numa_name);
+    unsigned long page_count = bytes/page_size;
+    std::vector<void *> pages(page_count);
+    std::vector<int>    nodes(page_count,numa);
+    std::vector<int>    status(page_count,-1);
+    for(unsigned long p=0;p<page_count;p++){
+      pages[p] =(void *) ((uint64_t) HostCommBuf + p*page_size);
+    }
+    int ret = move_pages(0,
+			 page_count,
+			 &pages[0],
+			 &nodes[0],
+			 &status[0],
+			 MPOL_MF_MOVE);
+    printf("Host buffer move to numa domain %d : move_pages returned %d\n",numa,ret);
+    if (ret) perror(" move_pages failed for reason:");
+  }
+#endif  
+  acceleratorPin(HostCommBuf,bytes);
+#endif  
+
+#endif  
   ShmCommBuf = acceleratorAllocDevice(bytes);
   if (ShmCommBuf == (void *)NULL ) {
     std::cerr << " SharedMemoryMPI.cc acceleratorAllocDevice failed NULL pointer for " << bytes<<" bytes " << std::endl;
@@ -611,8 +612,8 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
     typedef struct { int fd; pid_t pid ; ze_ipc_mem_handle_t ze; } clone_mem_t;
 
-    auto zeDevice    = cl::sycl::get_native<cl::sycl::backend::ext_oneapi_level_zero>(theGridAccelerator->get_device());
-    auto zeContext   = cl::sycl::get_native<cl::sycl::backend::ext_oneapi_level_zero>(theGridAccelerator->get_context());
+    auto zeDevice    = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(theGridAccelerator->get_device());
+    auto zeContext   = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(theGridAccelerator->get_context());
       
     ze_ipc_mem_handle_t ihandle;
     clone_mem_t handle;
@@ -745,7 +746,6 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
   _ShmAllocBytes=bytes;
   _ShmAlloc=1;
 }
-#endif
 
 #else 
 #ifdef GRID_MPI3_SHMMMAP
@@ -968,6 +968,12 @@ void SharedMemory::SetCommunicator(Grid_MPI_Comm comm)
     ShmCommBufs[r] = GlobalSharedMemory::WorldShmCommBufs[wsr];
   }
   ShmBufferFreeAll();
+
+#ifndef ACCELERATOR_AWARE_MPI
+  host_heap_size = heap_size;
+  HostCommBuf= GlobalSharedMemory::HostCommBuf;
+  HostBufferFreeAll();
+#endif  
 
   /////////////////////////////////////////////////////////////////////
   // find comm ranks in our SHM group (i.e. which ranks are on our node)

@@ -7,6 +7,8 @@ uint32_t accelerator_threads=2;
 uint32_t acceleratorThreads(void)       {return accelerator_threads;};
 void     acceleratorThreads(uint32_t t) {accelerator_threads = t;};
 
+#define ENV_LOCAL_RANK_PALS    "PALS_LOCAL_RANKID"
+#define ENV_RANK_PALS          "PALS_RANKID"
 #define ENV_LOCAL_RANK_OMPI    "OMPI_COMM_WORLD_LOCAL_RANK"
 #define ENV_RANK_OMPI          "OMPI_COMM_WORLD_RANK"
 #define ENV_LOCAL_RANK_SLURM   "SLURM_LOCALID"
@@ -129,7 +131,7 @@ hipStream_t computeStream;
 void acceleratorInit(void)
 {
   int nDevices = 1;
-  hipGetDeviceCount(&nDevices);
+  auto discard = hipGetDeviceCount(&nDevices);
   gpu_props = new hipDeviceProp_t[nDevices];
 
   char * localRankStr = NULL;
@@ -156,7 +158,7 @@ void acceleratorInit(void)
 #define GPU_PROP_FMT(canMapHostMemory,FMT)     printf("AcceleratorHipInit:   " #canMapHostMemory ": " FMT" \n",prop.canMapHostMemory);
 #define GPU_PROP(canMapHostMemory)             GPU_PROP_FMT(canMapHostMemory,"%d");
     
-    auto r=hipGetDeviceProperties(&gpu_props[i], i);
+    discard = hipGetDeviceProperties(&gpu_props[i], i);
     hipDeviceProp_t prop; 
     prop = gpu_props[i];
     totalDeviceMem = prop.totalGlobalMem;
@@ -193,13 +195,13 @@ void acceleratorInit(void)
   }
   int device = rank;
 #endif
-  hipSetDevice(device);
-  hipStreamCreate(&copyStream);
-  hipStreamCreate(&computeStream);
+  discard = hipSetDevice(device);
+  discard = hipStreamCreate(&copyStream);
+  discard = hipStreamCreate(&computeStream);
   const int len=64;
   char busid[len];
   if( rank == world_rank ) { 
-    hipDeviceGetPCIBusId(busid, len, device);
+    discard = hipDeviceGetPCIBusId(busid, len, device);
     printf("local rank %d device %d bus id: %s\n", rank, device, busid);
   }
   if ( world_rank == 0 )  printf("AcceleratorHipInit: ================================================\n");
@@ -209,17 +211,16 @@ void acceleratorInit(void)
 
 #ifdef GRID_SYCL
 
-cl::sycl::queue *theGridAccelerator;
-cl::sycl::queue *theCopyAccelerator;
+sycl::queue *theGridAccelerator;
+sycl::queue *theCopyAccelerator;
 void acceleratorInit(void)
 {
   int nDevices = 1;
-  cl::sycl::gpu_selector selector;
-  cl::sycl::device selectedDevice { selector };
-
-  //Ensure consistent behavior across HIP/CUDA/SYCL by using separate FIFO queues
-  theGridAccelerator = new sycl::queue (selectedDevice, sycl::property_list{sycl::property::queue::in_order{}});
-  theCopyAccelerator = new sycl::queue (theGridAccelerator->get_context(), selectedDevice, sycl::property_list{sycl::property::queue::in_order{}});
+  //  sycl::gpu_selector selector;
+  //  sycl::device selectedDevice { selector };
+  theGridAccelerator = new sycl::queue (sycl::gpu_selector_v);
+  theCopyAccelerator = new sycl::queue (sycl::gpu_selector_v);
+  //  theCopyAccelerator = theGridAccelerator; // Should proceed concurrenlty anyway.
 
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
   zeInit(0);
@@ -238,22 +239,32 @@ void acceleratorInit(void)
   {
     rank = atoi(localRankStr);		
   }
+  if ((localRankStr = getenv(ENV_LOCAL_RANK_PALS)) != NULL)
+  {
+    rank = atoi(localRankStr);		
+  }
   if ((localRankStr = getenv(ENV_RANK_OMPI   )) != NULL) { world_rank = atoi(localRankStr);}
   if ((localRankStr = getenv(ENV_RANK_MVAPICH)) != NULL) { world_rank = atoi(localRankStr);}
+  if ((localRankStr = getenv(ENV_RANK_PALS   )) != NULL) { world_rank = atoi(localRankStr);}
 
-  auto devices = cl::sycl::device::get_devices();
+  char hostname[HOST_NAME_MAX+1];
+  gethostname(hostname, HOST_NAME_MAX+1);
+  if ( rank==0 ) printf(" acceleratorInit world_rank %d is host %s \n",world_rank,hostname);
+
+  auto devices = sycl::device::get_devices();
   for(int d = 0;d<devices.size();d++){
 
 #define GPU_PROP_STR(prop) \
-    printf("AcceleratorSyclInit:   " #prop ": %s \n",devices[d].get_info<cl::sycl::info::device::prop>().c_str());
+    printf("AcceleratorSyclInit:   " #prop ": %s \n",devices[d].get_info<sycl::info::device::prop>().c_str());
 
 #define GPU_PROP_FMT(prop,FMT) \
-    printf("AcceleratorSyclInit:   " #prop ": " FMT" \n",devices[d].get_info<cl::sycl::info::device::prop>());
+    printf("AcceleratorSyclInit:   " #prop ": " FMT" \n",devices[d].get_info<sycl::info::device::prop>());
 
 #define GPU_PROP(prop)             GPU_PROP_FMT(prop,"%ld");
+    if ( world_rank == 0) {
 
-    GPU_PROP_STR(vendor);
-    GPU_PROP_STR(version);
+      GPU_PROP_STR(vendor);
+      GPU_PROP_STR(version);
     //    GPU_PROP_STR(device_type);
     /*
     GPU_PROP(max_compute_units);
@@ -269,7 +280,8 @@ void acceleratorInit(void)
     GPU_PROP(single_fp_config);
     */
     //    GPU_PROP(double_fp_config);
-    GPU_PROP(global_mem_size);
+      GPU_PROP(global_mem_size);
+    }
 
   }
   if ( world_rank == 0 ) {

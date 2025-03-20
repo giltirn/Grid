@@ -72,6 +72,7 @@ AC_CHECK_HEADERS(malloc/malloc.h)
 AC_CHECK_HEADERS(malloc.h)
 AC_CHECK_HEADERS(endian.h)
 AC_CHECK_HEADERS(execinfo.h)
+AC_CHECK_HEADERS(numaif.h)
 AC_CHECK_DECLS([ntohll],[], [], [[#include <arpa/inet.h>]])
 AC_CHECK_DECLS([be64toh],[], [], [[#include <arpa/inet.h>]])
 
@@ -126,6 +127,20 @@ case ${ac_LAPACK} in
         AM_CXXFLAGS="-I$ac_LAPACK/include $AM_CXXFLAGS"
         AM_LDFLAGS="-L$ac_LAPACK/lib $AM_LDFLAGS"
         AC_DEFINE([USE_LAPACK],[1],[use LAPACK]);;
+esac
+
+############### internal reduction
+AC_ARG_ENABLE([reduction],
+    [AS_HELP_STRING([--enable-reduction=mpi|grid],[enable reduction])],
+    [ac_REDUCTION=${enable_reduction}], [ac_REDUCTION=grid])
+
+case ${ac_REDUCTION} in
+    mpi)
+        ;;
+    grid)
+        AC_DEFINE([USE_GRID_REDUCTION],[1],[use GRID REDUCTION]);;
+    *)
+        AC_DEFINE([USE_GRID_REDUCTION],[1],[use GRID REDUCTION]);;
 esac
 
 ############### tracing
@@ -225,27 +240,20 @@ case ${ac_SFW_FP16} in
       AC_MSG_ERROR(["SFW FP16 option not supported ${ac_SFW_FP16}"]);;
 esac
 
-############### Default to accelerator cshift, but revert to host if UCX is buggy or other reasons
-AC_ARG_ENABLE([accelerator-cshift],
-    [AS_HELP_STRING([--enable-accelerator-cshift=yes|no],[run cshift on the device])],
-    [ac_ACC_CSHIFT=${enable_accelerator_cshift}], [ac_ACC_CSHIFT=yes])
 
-AC_ARG_ENABLE([ucx-buggy],
-    [AS_HELP_STRING([--enable-ucx-buggy=yes|no],[enable workaround for UCX device buffer bugs])],
-    [ac_UCXBUGGY=${enable_ucx_buggy}], [ac_UCXBUGGY=no])
+############### MPI BOUNCE TO HOST
+AC_ARG_ENABLE([accelerator-aware-mpi],
+    [AS_HELP_STRING([--enable-accelerator-aware-mpi=yes|no],[run mpi transfers from device])],
+    [ac_ACCELERATOR_AWARE_MPI=${enable_accelerator_aware_mpi}], [ac_ACCELERATOR_AWARE_MPI=yes])
 
-case ${ac_UCXBUGGY} in
+# Force accelerator CSHIFT now
+AC_DEFINE([ACCELERATOR_CSHIFT],[1],[ Cshift runs on device])
+
+case ${ac_ACCELERATOR_AWARE_MPI} in
     yes)
-    ac_ACC_CSHIFT=no;;
+      AC_DEFINE([ACCELERATOR_AWARE_MPI],[1],[ Stencil can use device pointers]);;
     *);;
 esac
-
-case ${ac_ACC_CSHIFT} in
-    yes)
-      AC_DEFINE([ACCELERATOR_CSHIFT],[1],[ UCX device buffer bugs are not present]);;
-    *);;
-esac
-
 
 ############### SYCL/CUDA/HIP/none
 AC_ARG_ENABLE([accelerator],
@@ -677,16 +685,6 @@ AC_ARG_ENABLE([shm-fast-path],[AS_HELP_STRING([--enable-shm-fast-path],[Allow ke
 case ${ac_SHM_FAST_PATH} in
      yes)
         AC_DEFINE([SHM_FAST_PATH],[1],[SHM_FAST_PATH] )
-      ;;
-     *) ;;
-esac
-
-############### communication type selection
-AC_ARG_ENABLE([comms-threads],[AS_HELP_STRING([--enable-comms-threads | --disable-comms-threads],[Use multiple threads in MPI calls])],[ac_COMMS_THREADS=${enable_comms_threads}],[ac_COMMS_THREADS=yes])
-
-case ${ac_COMMS_THREADS} in
-     yes)
-        AC_DEFINE([GRID_COMMS_THREADING],[1],[GRID_COMMS_NONE] )
       ;;
      *) ;;
 esac

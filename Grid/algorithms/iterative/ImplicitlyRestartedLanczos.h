@@ -110,13 +110,15 @@ template<class Field> class ImplicitlyRestartedLanczosHermOpTester  : public Imp
     RealD vv = _innerProdImpl.norm2(v) / ::pow(evalMaxApprox,2.0);
 
     std::cout.precision(13);
-    std::cout<<GridLogIRL  << "[" << std::setw(3)<<j<<"] "
-	     <<"eval = "<<std::setw(25)<< eval << " (" << eval_poly << ")"
-	     <<" |H B[i] - eval[i]B[i]|^2 / evalMaxApprox^2 " << std::setw(25) << vv
-	     <<std::endl;
 
     int conv=0;
     if( (vv<eresid*eresid) ) conv = 1;
+
+    std::cout<<GridLogIRL  << "[" << std::setw(3)<<j<<"] "
+	     <<"eval = "<<std::setw(25)<< eval << " (" << eval_poly << ")"
+	     <<" |H B[i] - eval[i]B[i]|^2 / evalMaxApprox^2 " << std::setw(25) << vv
+	     <<" target " << eresid*eresid << " conv " <<conv
+	     <<std::endl;
 
     return conv;
   }
@@ -491,7 +493,7 @@ private:
 	    std::vector<Field>& evec,
 	    Field& w,int Nm,int k)
   {
-    std::cout<<GridLogIRL << "Lanczos step " <<k<<std::endl;
+    std::cout<<GridLogDebug << "Lanczos step " <<k<<std::endl;
     const RealD tiny = 1.0e-20;
     assert( k< Nm );
 
@@ -499,7 +501,7 @@ private:
 
     Field& evec_k = evec[k];
 
-    _PolyOp(evec_k,w);    std::cout<<GridLogIRL << "PolyOp" <<std::endl;
+    _PolyOp(evec_k,w);    std::cout<<GridLogDebug << "PolyOp" <<std::endl;
 
     if(k>0) w -= lme[k-1] * evec[k-1];
 
@@ -514,18 +516,18 @@ private:
     lme[k] = beta;
 
     if ( (k>0) && ( (k % orth_period) == 0 )) {
-      std::cout<<GridLogIRL << "Orthogonalising " <<k<<std::endl;
+      std::cout<<GridLogDebug << "Orthogonalising " <<k<<std::endl;
       orthogonalize(w,evec,k); // orthonormalise
-      std::cout<<GridLogIRL << "Orthogonalised " <<k<<std::endl;
+      std::cout<<GridLogDebug << "Orthogonalised " <<k<<std::endl;
     }
 
     if(k < Nm-1) evec[k+1] = w;
 
-    std::cout<<GridLogIRL << "alpha[" << k << "] = " << zalph << " beta[" << k << "] = "<<beta<<std::endl;
+    std::cout<<GridLogIRL << "Lanczos step alpha[" << k << "] = " << zalph << " beta[" << k << "] = "<<beta<<std::endl;
     if ( beta < tiny ) 
       std::cout<<GridLogIRL << " beta is tiny "<<beta<<std::endl;
 
-    std::cout<<GridLogIRL << "Lanczos step complete " <<k<<std::endl;
+    std::cout<<GridLogDebug << "Lanczos step complete " <<k<<std::endl;
   }
 
   void diagonalize_Eigen(std::vector<RealD>& lmd, std::vector<RealD>& lme, 
