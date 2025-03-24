@@ -173,26 +173,46 @@ public:
     for(int p=1;p<max_proc;p++)
       column[p] = (obj*)MemoryManager::CpuAllocate(bytes);
 
+    Coordinate rank_coor;
+    ProcessorCoorFromRank(_processor, rank_coor); //where is this rank in the overall geometry?
+    
     int source,dest;
+    std::vector<MpiCommsRequest_t> list; //keep this outside as CommsComplete resizes to 0, but the vector should hold onto the heap memory region
     for(int d=0;d<_ndimension;d++){
-      std::vector<MpiCommsRequest_t> list;
-      for(int p=1;p<_processors[d];p++){
-	ShiftedRanks(d,p,source,dest);
-	SendToRecvFromBegin(list,
-			    column[0],
-			    dest,
-			    column[p],
-			    source,
-			    bytes,d*100+p);
+      
+      //Everyone send to the 0th rank in this direction
+      if(rank_coor[d] == 0){
+	for(int p=1;p<_processors[d];p++){
+	  ShiftedRanks(d,p,source,dest); //for +n displacement, dest is this ranks n-th neighbor to the right
+	                                 //and source the n-th to the left
 
+	  RecvFromBegin(list, 
+			column[p],
+			dest,
+			bytes,
+			d*100 + p);
+	}
+      }else{
+	int p = rank_coor[d];
+
+	ShiftedRanks(d,p,source,dest);
+	
+	SendToBegin(list, 
+		    column[0],
+		    source,
+		    bytes,
+		    d*100 + p);
       }
+
       if (!list.empty()) // avoid triggering assert in comms == none
 	CommsComplete(list);
 
-      thread_for(i,N,{
-	  for(int p=1;p<_processors[d];p++)
-	    data[i] = data[i] + column[p][i];
-	});    
+      if(rank_coor[d] == 0){
+	thread_for(i,N,{
+	    for(int p=1;p<_processors[d];p++)
+	      data[i] = data[i] + column[p][i];
+	  });    
+      }
     }
     for(int p=1;p<max_proc;p++)
       MemoryManager::CpuFree( (void*)column[p], bytes );
@@ -218,6 +238,16 @@ public:
 			   void *recv,
 			   int from,
 			   int bytes,int dir);
+
+  void SendToBegin(std::vector<MpiCommsRequest_t> &list,
+		   void *xmit,
+		   int dest,
+		   int bytes,int dir);
+
+  void RecvFromBegin(std::vector<MpiCommsRequest_t> &list,
+		     void *recv,
+		     int from,
+		     int bytes,int dir);
   
   void SendToRecvFrom(void *xmit,
 		      int xmit_to_rank,
