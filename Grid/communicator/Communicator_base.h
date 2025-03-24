@@ -162,37 +162,42 @@ public:
   template<class obj> void GlobalSumVectorP2P(obj* data, size_t N)
   {
     typedef MPI_Request MpiCommsRequest_t;
-    std::vector< std::vector<obj> > column;
-    std::vector<obj> accum(N);
+    int max_proc = _processors[0];
+    for(int d=1; d<_ndimension; d++)
+      max_proc = std::max(max_proc, _processors[d]);
+
     size_t bytes = N*sizeof(obj);
 
-    memcpy(accum.data(),data,bytes);
+    std::vector<obj*> column(max_proc);
+    column[0] = data;
+    for(int p=1;p<max_proc;p++)
+      column[p] = (obj*)MemoryManager::CpuAllocate(bytes);
 
     int source,dest;
     for(int d=0;d<_ndimension;d++){
-      column.resize(_processors[d], std::vector<obj>(N));
-      column[0] = accum;
       std::vector<MpiCommsRequest_t> list;
       for(int p=1;p<_processors[d];p++){
 	ShiftedRanks(d,p,source,dest);
 	SendToRecvFromBegin(list,
-			    column[0].data(),
+			    column[0],
 			    dest,
-			    column[p].data(),
+			    column[p],
 			    source,
 			    bytes,d*100+p);
 
       }
       if (!list.empty()) // avoid triggering assert in comms == none
 	CommsComplete(list);
-      for(int p=1;p<_processors[d];p++){
-	thread_for(i,N,{
-	    accum[i] = accum[i] + column[p][i];
-	  });
-      }
+
+      thread_for(i,N,{
+	  for(int p=1;p<_processors[d];p++)
+	    data[i] = data[i] + column[p][i];
+	});    
     }
-    Broadcast(0,accum.data(),bytes);
-    memcpy(data, accum.data(), bytes);
+    for(int p=1;p<max_proc;p++)
+      MemoryManager::CpuFree( (void*)column[p], bytes );
+
+    Broadcast(0,data,bytes);
   }
 
 
