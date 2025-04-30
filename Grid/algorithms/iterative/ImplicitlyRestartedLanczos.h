@@ -192,6 +192,23 @@ public:
 
   ImplicitlyRestartedLanczos(LinearFunction<Field> & PolyOp,
 			     LinearFunction<Field> & HermOp,
+			     ImplicitlyRestartedLanczosTester<Field> & Tester,
+			     int _Nstop, // sought vecs
+			     int _Nk, // sought vecs
+			     int _Nm, // spare vecs
+			     RealD _eresid, // resid in lmdue deficit 
+			     int _MaxIter, // Max iterations
+			     RealD _betastp=0.0, // if beta(k) < betastp: converged
+			     int _MinRestart=0, int _orth_period = 1,
+			     IRLdiagonalisation _diagonalisation= IRLdiagonaliseWithEigen) :
+    SimpleTester(HermOp), _PolyOp(PolyOp),      _HermOp(HermOp), _Tester(Tester), _innerProdImpl(innerProductImplementation<Field>::defaultImpl()),
+    Nstop(_Nstop)  ,      Nk(_Nk),      Nm(_Nm),
+    eresid(_eresid),      betastp(_betastp),
+    MaxIter(_MaxIter)  ,      MinRestart(_MinRestart),
+    orth_period(_orth_period), diagonalisation(_diagonalisation)  { };
+
+  ImplicitlyRestartedLanczos(LinearFunction<Field> & PolyOp,
+			     LinearFunction<Field> & HermOp,
 			     int _Nstop, // sought vecs
 			     int _Nk, // sought vecs
 			     int _Nm, // spare vecs
