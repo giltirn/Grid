@@ -608,7 +608,7 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
     // If it is me, pass around the IPC access key
     //////////////////////////////////////////////////
     void * thisBuf = ShmCommBuf;
-    if(!Stencil_force_mpi) {
+    if(Enable_shared_mem_buffer) {
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
     typedef struct { int fd; pid_t pid ; ze_ipc_mem_handle_t ze; } clone_mem_t;
 

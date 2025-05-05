@@ -322,8 +322,25 @@ void Grid_init(int *argc,char ***argv)
     arg= GridCmdOptionPayload(*argv,*argv+*argc,"--shm-mpi");
     GridCmdOptionInt(arg,forcempi);
     Stencil_force_mpi = (bool)forcempi;
+
+    if(!Stencil_force_mpi) Enable_shared_mem_buffer = true;
   }
   
+#ifndef GRID_MPI3_SHM_NONE
+  if( GridCmdOptionExists(*argv,*argv+*argc,"--enable-shm-buffer") ){
+    int enablebuf;
+    arg= GridCmdOptionPayload(*argv,*argv+*argc,"--enable-shm-buffer");
+    GridCmdOptionInt(arg,enablebuf);
+
+    if(!Stencil_force_mpi && !enablebuf){
+      std::cout << "Disabling the shm buffer via '--enable-shm-buffer 0' is incompatible with '--shm-mpi 0'. Exiting." << std::endl;
+      exit(EXIT_FAILURE);
+    }      
+
+    Enable_shared_mem_buffer = (bool)enablebuf;
+  }
+#endif
+
   if( GridCmdOptionExists(*argv,*argv+*argc,"--device-mem") ){
     int MB;
     arg= GridCmdOptionPayload(*argv,*argv+*argc,"--device-mem");

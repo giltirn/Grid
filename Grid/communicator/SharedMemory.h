@@ -161,7 +161,7 @@ private:
   size_t host_heap_size; // set in SetCommunicator
 #endif
   
-protected:
+public:
 
   Grid_MPI_Comm    ShmComm; // for barriers
   int    ShmRank; 

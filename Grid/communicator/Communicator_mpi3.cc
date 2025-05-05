@@ -245,6 +245,35 @@ void CartesianCommunicator::InitFromMPICommunicator(const Coordinate &processors
     MPI_Comm_dup(communicator,&communicator_halo[i]);
   }
   assert(Size==_Nprocessors);
+
+  //Initialized the shm-rank communicators
+  if(Enable_shared_mem_buffer){
+    communicator_shm_ranks.resize(ShmSize);
+
+    for(int r=0;r<ShmSize;r++){      
+      std::vector<uint64_t> rankr_handsup(_Nprocessors,0);
+      if(ShmRank == r)
+	rankr_handsup[_processor] = 1;
+      GlobalSumVector(rankr_handsup.data(),_Nprocessors);
+      
+      std::vector<int> rankrs;
+      for(int i=0;i<_Nprocessors;i++)
+	if(rankr_handsup[i])
+	  rankrs.push_back(i);
+    
+      MPI_Group comm_group;
+      assert( MPI_Comm_group(communicator, &comm_group) == MPI_SUCCESS );
+      
+      MPI_Group rankr_group;
+      assert( MPI_Group_incl(comm_group, rankrs.size(), rankrs.data(), &rankr_group) == MPI_SUCCESS );
+      
+      assert( MPI_Comm_create(communicator, rankr_group, &communicator_shm_ranks[r]) == MPI_SUCCESS );
+      
+      assert( MPI_Group_free(&comm_group) == MPI_SUCCESS );
+      assert( MPI_Group_free(&rankr_group) == MPI_SUCCESS );
+    }      
+  }
+
 }
 
 CartesianCommunicator::~CartesianCommunicator()
@@ -255,6 +284,9 @@ CartesianCommunicator::~CartesianCommunicator()
     MPI_Comm_free(&communicator);
     for(int i=0;i<communicator_halo.size();i++){
       MPI_Comm_free(&communicator_halo[i]);
+    }
+    for(int r=0;r<ShmSize;r++){ 
+      MPI_Comm_free(&communicator_shm_ranks[r]);
     }
   }
 }
@@ -316,6 +348,165 @@ void CartesianCommunicator::GlobalSumVector(double *d,int N)
 {
   int ierr = MPI_Allreduce(MPI_IN_PLACE,d,N,MPI_DOUBLE,MPI_SUM,communicator);
   assert(ierr==0);
+}
+
+template<typename T>
+struct _mpi_datatype{};
+template<>
+struct _mpi_datatype<double>{
+  static inline MPI_Datatype type(){ return MPI_DOUBLE; }
+};
+template<>
+struct _mpi_datatype<float>{
+  static inline MPI_Datatype type(){ return MPI_FLOAT; }
+};
+
+template<typename T>
+void GlobalSumVectorRingImpl(T* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+#ifdef ACCELERATOR_AWARE_MPI
+  bool accelerator_aware_mpi = allow_acc_aware_mpi;
+#else
+  bool accelerator_aware_mpi = false;
+#endif
+
+  bool comms_on_host = !on_device || !accelerator_aware_mpi;
+
+  T* data_buf = data; //buffer to use for data in comms
+  size_t total_bytes = len*sizeof(data);
+  
+  if(on_device && comms_on_host){
+    data_buf = malloc(total_bytes);
+    acceleratorCopyFromDevice(data,data_buf,total_bytes);
+  }
+
+  int nrank;
+  assert( MPI_Comm_size(comm, &nrank) == MPI_SUCCESS );
+  size_t block_size = (len + nrank - 1)/nrank;
+
+  int rank;
+  assert( MPI_Comm_rank(comm, &rank) == MPI_SUCCESS );
+  
+  int next_rank = (rank+1) % nrank;
+  int prev_rank = (rank - 1 + nrank) % nrank;
+  MPI_Request reqs[2];
+
+  //reduce. Put the receive buffer on the GPU if accelerator aware MPI is enabled and the data is on the GPU
+  size_t block_bytes = block_size*sizeof(T);
+  T *recv_buf = comms_on_host ? (T*)malloc(block_bytes) : (T*)acceleratorAllocDevice(block_bytes);
+
+  MPI_Datatype mpi_type = _mpi_datatype<T>::type();
+
+  for(int cycle = 0; cycle < nrank-1; cycle++){
+    int send_block = (rank - cycle + nrank) % nrank;
+    int recv_block = (rank - cycle - 1 + nrank) % nrank;
+    size_t send_size = send_block == nrank - 1 ? len - send_block*block_size : block_size;
+    size_t recv_size = recv_block == nrank - 1 ? len - recv_block*block_size : block_size;
+  
+    assert( MPI_Isend(data_buf + send_block * block_size, send_size, mpi_type, next_rank, 0, comm, &reqs[0]) == MPI_SUCCESS );
+    assert( MPI_Irecv(recv_buf, recv_size, mpi_type, prev_rank, 0, comm, &reqs[1]) == MPI_SUCCESS );    
+    
+    assert( MPI_Waitall(2,reqs,MPI_STATUSES_IGNORE) == MPI_SUCCESS );       
+
+    if(comms_on_host){
+      thread_for(i, recv_size, {
+	  T* into = data_buf + recv_block * block_size + i;
+	  *into += recv_buf[i];
+	});
+    }else{
+      accelerator_for(i, recv_size, 1,{ //optimize using coalescence with blocking
+	  T* into = data_buf + recv_block * block_size + i;
+	  *into += recv_buf[i];
+	});
+    }    
+  }
+    
+  if(comms_on_host) free(recv_buf);
+  else acceleratorFreeDevice(recv_buf);
+
+  //communicate
+  for(int cycle = 0; cycle < nrank-1; cycle++){
+    int send_block = (rank - cycle + 1 + nrank) % nrank;
+    int recv_block = (rank - cycle + nrank) % nrank;
+    size_t send_size = send_block == nrank - 1 ? len - send_block*block_size : block_size;
+    size_t recv_size = recv_block == nrank - 1 ? len - recv_block*block_size : block_size;
+
+    assert( MPI_Isend(data_buf + send_block * block_size, send_size, mpi_type, next_rank, 0, comm, &reqs[0]) == MPI_SUCCESS );
+    assert( MPI_Irecv(data_buf + recv_block * block_size, recv_size, mpi_type, prev_rank, 0, comm, &reqs[1]) == MPI_SUCCESS );    
+    
+    assert( MPI_Waitall(2,reqs,MPI_STATUSES_IGNORE) == MPI_SUCCESS );       
+  }
+  
+  if(on_device && comms_on_host){ //put back on device if it started there
+    acceleratorCopyFromDevice(data_buf,data,total_bytes);
+    free(data_buf);
+  }
+}
+
+void CartesianCommunicator::GlobalSumVectorRing(double* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+  GlobalSumVectorRingImpl<double>(data, len, on_device, comm, allow_acc_aware_mpi);
+}
+void CartesianCommunicator::GlobalSumVectorRing(float* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+  GlobalSumVectorRingImpl<float>(data, len, on_device, comm, allow_acc_aware_mpi);
+}
+
+
+template<typename T>
+void GlobalSumVectorRingSharedImpl(CartesianCommunicator &gcomm, T* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+  size_t bytes = len*sizeof(T);
+  if(bytes > GlobalSharedMemory::MAX_MPI_SHM_BYTES || !Enable_shared_mem_buffer) return gcomm.GlobalSumVectorRing(data, len, on_device, comm, allow_acc_aware_mpi);
+  //Local copy
+
+  gcomm.ShmBufferFreeAll();
+  T* shm_data = (T*)gcomm.ShmBufferMalloc(bytes);    
+  if(on_device){
+    acceleratorCopyDeviceToDevice(data, shm_data, bytes);
+  }else{
+    acceleratorCopyToDevice(data, shm_data, bytes);
+  }
+
+  gcomm.ShmBarrier();
+
+  size_t block_size =  (len + gcomm.ShmSize-1)/gcomm.ShmSize;
+  size_t rank_off = block_size * gcomm.ShmRank;
+  size_t rank_size = gcomm.ShmRank == gcomm.ShmSize - 1 ? len - block_size * gcomm.ShmRank : block_size;
+  
+  T* rank_reduce_ptr = shm_data + rank_off;
+    
+  //Everybody reduce their independent segment in parallel
+  for(int r=0;r<gcomm.ShmSize;r++){
+    if(r == gcomm.ShmRank)
+      continue;
+    
+    T* from = (T*)gcomm.ShmCommBufs[r] + rank_off;
+    
+    accelerator_for(i, rank_size, 1, {
+	rank_reduce_ptr[i] = rank_reduce_ptr[i] + from[i];
+      });
+  }   
+  gcomm.ShmBarrier();
+
+  gcomm.GlobalSumVectorRing(rank_reduce_ptr, rank_size, true, gcomm.communicator_shm_ranks[gcomm.ShmRank], allow_acc_aware_mpi);
+
+  gcomm.ShmBarrier();
+  
+  //Copy back segments
+  for(int r=0;r<gcomm.ShmSize;r++){
+    size_t r_off = block_size * r;
+    T *to = data + r_off;
+    T* from = (T*)gcomm.ShmCommBufs[r] + r_off;
+    size_t r_size = r == gcomm.ShmSize - 1 ? len - block_size * r : block_size;
+    if(on_device) acceleratorCopyDeviceToDevice(from, to, r_size*sizeof(T));
+    else acceleratorCopyFromDevice(from, to, r_size*sizeof(T));
+  }
+  gcomm.ShmBarrier();
+  gcomm.ShmBufferFreeAll();
+}
+
+void CartesianCommunicator::GlobalSumVectorRingShared(double* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+  GlobalSumVectorRingSharedImpl<double>(*this, data, len, on_device, comm, allow_acc_aware_mpi);
+}
+void CartesianCommunicator::GlobalSumVectorRingShared(float* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+ GlobalSumVectorRingSharedImpl<float>(*this, data, len, on_device, comm, allow_acc_aware_mpi);
 }
 
 void CartesianCommunicator::SendToRecvFromBegin(std::vector<MpiCommsRequest_t> &list,

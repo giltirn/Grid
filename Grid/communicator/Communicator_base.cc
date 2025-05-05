@@ -34,6 +34,11 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 NAMESPACE_BEGIN(Grid);
 
 bool Stencil_force_mpi = true;
+#ifdef GRID_MPI3_SHM_NONE
+bool Enable_shared_mem_buffer = false;
+#else
+bool Enable_shared_mem_buffer = true;
+#endif
 
 ///////////////////////////////////////////////////////////////
 // Info that is setup once and indept of cartesian layout

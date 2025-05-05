@@ -37,7 +37,8 @@ Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 
 NAMESPACE_BEGIN(Grid);
 
-extern bool Stencil_force_mpi ;
+extern bool Stencil_force_mpi ; //use MPI for stencil comms
+extern bool Enable_shared_mem_buffer; //allow for inter-process comms on the same node via shared memory (the stencil will use this if Stencil_force_mpi == 0)
 
 class CartesianCommunicator : public SharedMemory {
 
@@ -63,7 +64,7 @@ public:
   static Grid_MPI_Comm      communicator_world;
   Grid_MPI_Comm             communicator;
   std::vector<Grid_MPI_Comm> communicator_halo;
-  
+  std::vector<Grid_MPI_Comm> communicator_shm_ranks; //communicator between shm-rank i over all nodes in the primary communicator
   ////////////////////////////////////////////////
   // Must call in Grid startup
   ////////////////////////////////////////////////
@@ -158,6 +159,23 @@ public:
     Broadcast(0,accum);
     o=accum;
   }
+
+  //Global sum an array using the ring all-reduce method, optimized for bandwidth
+  //on_device : indicate whether the data is device resident. If so, and accelerator-aware MPI is available and allowed, the comms will be performed device-to-device. If it is not available, it will be temporarily copied to the host for the comms and returned to the device after.
+  //allow_acc_aware_mpi : allow the user to control whether accelerator-aware MPI is used, if available
+  void GlobalSumVectorRing(double* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi = true);
+  void GlobalSumVectorRing(float* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi = true);
+
+  template<typename T>
+  inline void GlobalSumVectorRing(T* data, size_t len, bool on_device){ return GlobalSumVectorRing(data,len,on_device, this->communicator); }
+
+  //Same as above but first perform a local reduction in parallel using the shared memory buffer in order to increase performance. 
+  //If the shared-memory buffer is disabled or the byte size is larger than the shared memory buffer size it will fall back to the regular ring-reduce 
+  void GlobalSumVectorRingShared(double* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi = true);
+  void GlobalSumVectorRingShared(float* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi = true);
+
+  template<typename T>
+  inline void GlobalSumVectorRingShared(T* data, size_t len, bool on_device){ return GlobalSumVectorRingShared(data,len,on_device, this->communicator); }
 
   template<class obj> void GlobalSumVectorP2P(obj* data, size_t N)
   {

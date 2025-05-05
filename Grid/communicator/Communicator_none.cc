@@ -81,6 +81,10 @@ void CartesianCommunicator::GlobalSumVector(uint64_t *,int N){}
 void CartesianCommunicator::GlobalXOR(uint32_t &){}
 void CartesianCommunicator::GlobalXOR(uint64_t &){}
 
+template<typename T>
+void CartesianCommunicator::GlobalSumVectorRing(T* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){}
+template<typename T>
+void CartesianCommunicator::GlobalSumVectorRingShared(T* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){}
 
 // Basic Halo comms primitive -- should never call in single node
 void CartesianCommunicator::SendToRecvFrom(void *xmit,
