@@ -2,10 +2,11 @@
 
     Grid physics library, www.github.com/paboyle/Grid 
 
-    Source file: ./benchmarks/Benchmark_comms.cc
+    Source file: ./benchmarks/Benchmark_globalsum.cc
 
     Copyright (C) 2015
 
+Author: Christopher Kelly <ckelly@bnl.gov>
 Author: Peter Boyle <paboyle@ph.ed.ac.uk>
 
     This program is free software; you can redistribute it and/or modify
@@ -52,7 +53,7 @@ void stats(double &mean, double &std, double &median, double &min, double &max, 
   std = sqrt( std/sz - mean*mean );
 }
 
-void normalMPIreduction(double* ptr, size_t N, bool data_on_device, bool allow_acc_aware_mpi, CartesianCommunicator &comm){
+void normalMPIreduction(double* ptr, size_t N, bool data_on_device, bool allow_acc_aware_mpi, MPI_Comm comm){
   bool enable_acc_aware_mpi = false;
 #ifdef ACCELERATOR_AWARE_MPI
   enable_acc_aware_mpi = allow_acc_aware_mpi;
@@ -61,15 +62,15 @@ void normalMPIreduction(double* ptr, size_t N, bool data_on_device, bool allow_a
   size_t bytes = N*sizeof(double);
 
   if(data_on_device && !enable_acc_aware_mpi){
-    buf = (double*)acceleratorAllocHost(bytes);
+    buf = (double*)malloc(bytes);
     acceleratorCopyFromDevice(ptr, buf, bytes);
   }
 
-  MPI_Allreduce(MPI_IN_PLACE, buf, N, MPI_DOUBLE, MPI_SUM, comm.communicator);
+  MPI_Allreduce(MPI_IN_PLACE, buf, N, MPI_DOUBLE, MPI_SUM, comm);
 
   if(data_on_device && !enable_acc_aware_mpi){
     acceleratorCopyToDevice(buf, ptr, bytes);
-    acceleratorFreeHost(buf);
+    free(buf);
   }
 }
 
@@ -98,9 +99,9 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
       deviceVector<double> got_device(N), expect_device(N);
       acceleratorCopyToDevice(data_host.data(), got_device.data(),bytes);
       acceleratorCopyToDevice(data_host.data(), expect_device.data(),bytes);
-
+      
       impl.reduce(got_device.data(), N, true, allow_acc_aware_mpi);
-      normalMPIreduction(expect_device.data(), N, true, allow_acc_aware_mpi, comm);
+      normalMPIreduction(expect_device.data(), N, true, allow_acc_aware_mpi, comm.communicator);
       
       acceleratorCopyFromDevice(got_device.data(), got_host.data(), bytes);
       acceleratorCopyFromDevice(expect_device.data(), expect_host.data(), bytes);
@@ -109,7 +110,7 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
       expect_host = data_host;
 
       impl.reduce(got_host.data(), N, false, allow_acc_aware_mpi);
-      normalMPIreduction(expect_host.data(), N, false, allow_acc_aware_mpi, comm);
+      normalMPIreduction(expect_host.data(), N, false, allow_acc_aware_mpi, comm.communicator);
     }
 
     bool fail =false;
@@ -138,12 +139,23 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
     {      
       for(int n=0;n<nrpt;n++){
 	double dt = -usecond();			       
-	normalMPIreduction(buf_base, ndouble, device_ptr, allow_acc_aware_mpi, comm);
+	normalMPIreduction(buf_base, ndouble, device_ptr, allow_acc_aware_mpi, comm.communicator);
 	dt += usecond();
 	time_base[n] = dt / 1000000;
       }
     }
 
+    std::vector<double> time_base_comm_world(nrpt); //MPI_COMM_WORLD vs internal communicator
+    {      
+      for(int n=0;n<nrpt;n++){
+	double dt = -usecond();			       
+	normalMPIreduction(buf_base, ndouble, device_ptr, allow_acc_aware_mpi, MPI_COMM_WORLD);
+	dt += usecond();
+	time_base_comm_world[n] = dt / 1000000;
+      }
+    }
+
+    
     if(device_ptr)
       acceleratorFreeDevice(buf_base);
     else free(buf_base);
@@ -153,6 +165,13 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
        
     double MB_per_s_base = size_MB / mu_base;
     double MB_per_s_base_err = size_MB/mu_base/mu_base * std_base;
+
+    double mu_base_comm_world, std_base_comm_world, med_base_comm_world, min_base_comm_world, max_base_comm_world, iqr_lo_base_comm_world, iqr_hi_base_comm_world;
+    stats(mu_base_comm_world, std_base_comm_world, med_base_comm_world, min_base_comm_world, max_base_comm_world, iqr_lo_base_comm_world, iqr_hi_base_comm_world, time_base_comm_world);
+       
+    double MB_per_s_base_comm_world = size_MB / mu_base_comm_world;
+    double MB_per_s_base_comm_world_err = size_MB/mu_base_comm_world/mu_base_comm_world * std_base_comm_world;
+
     
     double* buf_new;
     if(device_ptr)
@@ -166,7 +185,7 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
 	double dt = -usecond();
 	impl.reduce(buf_new,ndouble,device_ptr,allow_acc_aware_mpi);
 	dt += usecond();
-	time_new[n] = dt / 100000;	
+	time_new[n] = dt / 1000000;	
       }
     }
 
@@ -182,6 +201,7 @@ void benchmarkAllReduce(const std::vector<int> &sizes_MB, CartesianCommunicator 
 
     std::cout << "Size " << size_MB << " MB" << std::endl;
     std::cout << "Base time mu=" << mu_base << " std=" << std_base << " med=" << med_base << " iqr_lo=" << iqr_lo_base << " iqr_hi=" << iqr_hi_base << " min=" << min_base << " max=" << max_base << "  rate=" << MB_per_s_base << "+-" << MB_per_s_base_err << std::endl;
+    std::cout << "Base (COMM_WORLD) time mu=" << mu_base_comm_world << " std=" << std_base_comm_world << " med=" << med_base_comm_world << " iqr_lo=" << iqr_lo_base_comm_world << " iqr_hi=" << iqr_hi_base_comm_world << " min=" << min_base_comm_world << " max=" << max_base_comm_world << "  rate=" << MB_per_s_base_comm_world << "+-" << MB_per_s_base_comm_world_err << std::endl;
     std::cout << "New  time mu=" << mu_new << " std=" << std_new << " med=" << med_new << " iqr_lo=" << iqr_lo_new << " iqr_hi=" << iqr_hi_new << " min=" << min_new << " max=" << max_new << "  rate=" << MB_per_s_new << "+-" << MB_per_s_new_err << std::endl << std::endl;   
   }
 }
@@ -221,7 +241,7 @@ void benchmarkAllReduceSharedRing(const std::vector<int> &sizes_MB, CartesianCom
 int main (int argc, char ** argv)
 {
   Grid_init(&argc,&argv);
-
+  
   Coordinate simd_layout = GridDefaultSimd(Nd,vComplexD::Nsimd());
   Coordinate mpi_layout  = GridDefaultMpi();
 
@@ -250,19 +270,16 @@ int main (int argc, char ** argv)
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
   std::cout<<GridLogMessage << "= Benchmarking ring reduction on host"<<std::endl;
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
-  
   benchmarkAllReduceRing(sizes_MB, comm, false, true, nrpt);
 
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
   std::cout<<GridLogMessage << "= Benchmarking ring reduction on device with accelerator-aware MPI enabled"<<std::endl;
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
-
   benchmarkAllReduceRing(sizes_MB, comm, true, true, nrpt);
 
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
   std::cout<<GridLogMessage << "= Benchmarking ring reduction on device with accelerator-aware MPI disabled"<<std::endl;
   std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
-
   benchmarkAllReduceRing(sizes_MB, comm, true, false, nrpt);
 
 
@@ -272,13 +289,11 @@ int main (int argc, char ** argv)
     std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
   
     benchmarkAllReduceSharedRing(sizes_MB, comm, false, true, nrpt);
-
     std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
     std::cout<<GridLogMessage << "= Benchmarking shared ring reduction on device with accelerator-aware MPI enabled"<<std::endl;
     std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
 
     benchmarkAllReduceSharedRing(sizes_MB, comm, true, true, nrpt);
-
     std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;
     std::cout<<GridLogMessage << "= Benchmarking shared ring reduction on device with accelerator-aware MPI disabled"<<std::endl;
     std::cout<<GridLogMessage << "===================================================================================================="<<std::endl;

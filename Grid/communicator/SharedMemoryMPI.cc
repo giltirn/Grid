@@ -528,6 +528,9 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
 #if defined(GRID_CUDA) ||defined(GRID_HIP)  || defined(GRID_SYCL)
 void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
 {
+  std::cout << Mheader "SharedMemoryAllocate "<< bytes<< " GPU implementation" <<std::endl;
+  std::cout << Mheader "SharedMemoryAllocate "<< bytes<< " shared mem buffer is " << (Enable_shared_mem_buffer ? "ENABLED" : "DISABLED") <<std::endl;
+  
   void * ShmCommBuf ; 
   assert(_ShmSetup==1);
   assert(_ShmAlloc==0);
@@ -588,7 +591,7 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
     exit(EXIT_FAILURE);  
   }
   if ( WorldRank == 0 ){
-    std::cout << WorldRank << Mheader " SharedMemoryMPI.cc acceleratorAllocDevice "<< bytes 
+    std::cout << Mheader " SharedMemoryMPI.cc acceleratorAllocDevice "<< bytes 
 	      << "bytes at "<< std::hex<< ShmCommBuf << " - "<<(bytes-1+(uint64_t)ShmCommBuf) <<std::dec<<" for comms buffers " <<std::endl;
   }
   SharedMemoryZero(ShmCommBuf,bytes);
@@ -608,7 +611,7 @@ void GlobalSharedMemory::SharedMemoryAllocate(uint64_t bytes, int flags)
     // If it is me, pass around the IPC access key
     //////////////////////////////////////////////////
     void * thisBuf = ShmCommBuf;
-    if(Enable_shared_mem_buffer) {
+    if(Enable_shared_mem_buffer) {      
 #ifdef GRID_SYCL_LEVEL_ZERO_IPC
     typedef struct { int fd; pid_t pid ; ze_ipc_mem_handle_t ze; } clone_mem_t;
 
@@ -986,6 +989,40 @@ void SharedMemory::SetCommunicator(Grid_MPI_Comm comm)
   std::vector<int> ranks(size);   for(int r=0;r<size;r++) ranks[r]=r;
   MPI_Group_translate_ranks (FullGroup,size,&ranks[0],ShmGroup, &ShmRanks[0]); 
 
+  //Initialized the shm-rank communicators
+  if(Enable_shared_mem_buffer){
+    std::cout << "Setting up shm-rank communicators" << std::endl;      
+    ShmCommRanks.resize(ShmSize);
+    int Nproc;
+    MPI_Comm_size(comm, &Nproc);
+    int me;
+    MPI_Comm_rank(comm, &me);
+    
+    for(int r=0;r<ShmSize;r++){      
+      std::vector<uint64_t> rankr_handsup(Nproc,0);
+      if(ShmRank == r)
+	rankr_handsup[me] = 1;
+      MPI_Allreduce(MPI_IN_PLACE, rankr_handsup.data(), Nproc, MPI_UINT64_T, MPI_SUM, comm); 
+      
+      std::vector<int> rankrs;
+      for(int i=0;i<Nproc;i++)
+	if(rankr_handsup[i])
+	  rankrs.push_back(i);
+    
+      MPI_Group comm_group;
+      assert( MPI_Comm_group(comm, &comm_group) == MPI_SUCCESS );
+      
+      MPI_Group rankr_group;
+      assert( MPI_Group_incl(comm_group, rankrs.size(), rankrs.data(), &rankr_group) == MPI_SUCCESS );
+      
+      assert( MPI_Comm_create(comm, rankr_group, &ShmCommRanks[r]) == MPI_SUCCESS );
+      
+      assert( MPI_Group_free(&comm_group) == MPI_SUCCESS );
+      assert( MPI_Group_free(&rankr_group) == MPI_SUCCESS );
+    }      
+  }
+
+  
 #ifdef GRID_SHM_FORCE_MPI
   // Hide the shared memory path between ranks
   {
@@ -1011,26 +1048,29 @@ void SharedMemory::ShmBarrier(void)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SharedMemory::SharedMemoryTest(void)
 {
-  ShmBarrier();
-  uint64_t check[3];
-  uint64_t magic = 0x5A5A5A;
-  if ( ShmRank == 0 ) {
-    for(uint64_t r=0;r<ShmSize;r++){
-       check[0]=GlobalSharedMemory::WorldNode;
-       check[1]=r;
-       check[2]=magic;
-       acceleratorCopyToDevice(check,ShmCommBufs[r],3*sizeof(uint64_t));
+  for(int leader=0;leader<ShmSize;leader++){  
+    ShmBarrier();
+    uint64_t check_write[3], check_read[3];
+    uint64_t magic = 0x5A5A5A + leader;
+    if ( ShmRank == leader ) {
+      for(uint64_t r=0;r<ShmSize;r++){
+	check_write[0]=GlobalSharedMemory::WorldNode;
+	check_write[1]=r + ShmSize*leader;
+	check_write[2]=magic;
+	acceleratorCopyToDevice(check_write,ShmCommBufs[r],3*sizeof(uint64_t));
+      }
     }
+    ShmBarrier();
+    for(uint64_t r=0;r<ShmSize;r++){
+      acceleratorCopyFromDevice(ShmCommBufs[r],check_read,3*sizeof(uint64_t));
+      assert(check_read[0]==GlobalSharedMemory::WorldNode);
+      assert(check_read[1]==r + ShmSize*leader);
+      assert(check_read[2]==magic);
+    }
+    ShmBarrier();
   }
-  ShmBarrier();
-  for(uint64_t r=0;r<ShmSize;r++){
-    acceleratorCopyFromDevice(ShmCommBufs[r],check,3*sizeof(uint64_t));
-    assert(check[0]==GlobalSharedMemory::WorldNode);
-    assert(check[1]==r);
-    assert(check[2]==magic);
-  }
-  ShmBarrier();
-  std::cout << GridLogDebug << " SharedMemoryTest has passed "<<std::endl;
+    
+  std::cout << "SharedMemoryTest has passed "<<std::endl;
 }
 
 void *SharedMemory::ShmBuffer(int rank)
@@ -1059,6 +1099,11 @@ SharedMemory::~SharedMemory()
   int MPI_is_finalised;  MPI_Finalized(&MPI_is_finalised);
   if ( !MPI_is_finalised ) { 
     MPI_Comm_free(&ShmComm);
+
+    for(int r=0;r<ShmSize;r++){ 
+      MPI_Comm_free(&ShmCommRanks[r]);
+    }
+
   }
 };
 

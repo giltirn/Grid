@@ -64,7 +64,6 @@ public:
   static Grid_MPI_Comm      communicator_world;
   Grid_MPI_Comm             communicator;
   std::vector<Grid_MPI_Comm> communicator_halo;
-  std::vector<Grid_MPI_Comm> communicator_shm_ranks; //communicator between shm-rank i over all nodes in the primary communicator
   ////////////////////////////////////////////////
   // Must call in Grid startup
   ////////////////////////////////////////////////

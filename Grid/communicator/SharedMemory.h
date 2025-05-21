@@ -164,6 +164,7 @@ private:
 public:
 
   Grid_MPI_Comm    ShmComm; // for barriers
+  std::vector<Grid_MPI_Comm> ShmCommRanks; //communicator between shm-rank i over all nodes in the primary communicator
   int    ShmRank; 
   int    ShmSize;
   std::vector<void *> ShmCommBufs;

@@ -139,8 +139,13 @@ void GlobalSharedMemory::GetShmDims(const Coordinate &WorldDims,Coordinate &ShmD
   
   ////////////////////////////////////////////////////////////////
   // Powers of 2,3,5 only in prime decomposition for now
-  ////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////  
   int ndimension = WorldDims.size();
+
+  std::cout << "GetShmDims WorldDims=(";
+  for(int d=0;d<ndimension;d++) std::cout << WorldDims[d] << " ";
+  std::cout << ") WorldShmSize=" << WorldShmSize << std::endl;
+  
   ShmDims=Coordinate(ndimension,1);
 
   std::vector<int> primes({2,3,5});
@@ -152,12 +157,13 @@ void GlobalSharedMemory::GetShmDims(const Coordinate &WorldDims,Coordinate &ShmD
     int p;
     for(p=0;p<primes.size();p++) {
       int prime=primes[p];
+      
       if ( divides(prime,WorldDims[dim]/ShmDims[dim])
         && divides(prime,WorldShmSize/AutoShmSize)  ) {
-  AutoShmSize*=prime;
-  ShmDims[dim]*=prime;
-  last_dim = dim;
-  break;
+	AutoShmSize*=prime;
+	ShmDims[dim]*=prime;
+	last_dim = dim;
+	break;
       }
     }
     if (p == primes.size() && last_dim == dim) {

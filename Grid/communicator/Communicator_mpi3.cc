@@ -245,35 +245,6 @@ void CartesianCommunicator::InitFromMPICommunicator(const Coordinate &processors
     MPI_Comm_dup(communicator,&communicator_halo[i]);
   }
   assert(Size==_Nprocessors);
-
-  //Initialized the shm-rank communicators
-  if(Enable_shared_mem_buffer){
-    communicator_shm_ranks.resize(ShmSize);
-
-    for(int r=0;r<ShmSize;r++){      
-      std::vector<uint64_t> rankr_handsup(_Nprocessors,0);
-      if(ShmRank == r)
-	rankr_handsup[_processor] = 1;
-      GlobalSumVector(rankr_handsup.data(),_Nprocessors);
-      
-      std::vector<int> rankrs;
-      for(int i=0;i<_Nprocessors;i++)
-	if(rankr_handsup[i])
-	  rankrs.push_back(i);
-    
-      MPI_Group comm_group;
-      assert( MPI_Comm_group(communicator, &comm_group) == MPI_SUCCESS );
-      
-      MPI_Group rankr_group;
-      assert( MPI_Group_incl(comm_group, rankrs.size(), rankrs.data(), &rankr_group) == MPI_SUCCESS );
-      
-      assert( MPI_Comm_create(communicator, rankr_group, &communicator_shm_ranks[r]) == MPI_SUCCESS );
-      
-      assert( MPI_Group_free(&comm_group) == MPI_SUCCESS );
-      assert( MPI_Group_free(&rankr_group) == MPI_SUCCESS );
-    }      
-  }
-
 }
 
 CartesianCommunicator::~CartesianCommunicator()
@@ -284,9 +255,6 @@ CartesianCommunicator::~CartesianCommunicator()
     MPI_Comm_free(&communicator);
     for(int i=0;i<communicator_halo.size();i++){
       MPI_Comm_free(&communicator_halo[i]);
-    }
-    for(int r=0;r<ShmSize;r++){ 
-      MPI_Comm_free(&communicator_shm_ranks[r]);
     }
   }
 }
@@ -375,7 +343,7 @@ void GlobalSumVectorRingImpl(T* data, size_t len, bool on_device, Grid_MPI_Comm 
   size_t total_bytes = len*sizeof(data);
   
   if(on_device && comms_on_host){
-    data_buf = malloc(total_bytes);
+    data_buf = (T*)malloc(total_bytes);
     acceleratorCopyFromDevice(data,data_buf,total_bytes);
   }
 
@@ -463,7 +431,7 @@ void GlobalSumVectorRingSharedImpl(CartesianCommunicator &gcomm, T* data, size_t
   }else{
     acceleratorCopyToDevice(data, shm_data, bytes);
   }
-
+  
   gcomm.ShmBarrier();
 
   size_t block_size =  (len + gcomm.ShmSize-1)/gcomm.ShmSize;
@@ -485,7 +453,7 @@ void GlobalSumVectorRingSharedImpl(CartesianCommunicator &gcomm, T* data, size_t
   }   
   gcomm.ShmBarrier();
 
-  gcomm.GlobalSumVectorRing(rank_reduce_ptr, rank_size, true, gcomm.communicator_shm_ranks[gcomm.ShmRank], allow_acc_aware_mpi);
+  gcomm.GlobalSumVectorRing(rank_reduce_ptr, rank_size, true, gcomm.ShmCommRanks[gcomm.ShmRank], allow_acc_aware_mpi);
 
   gcomm.ShmBarrier();
   
