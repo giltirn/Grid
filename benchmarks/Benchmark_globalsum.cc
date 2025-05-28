@@ -233,8 +233,120 @@ struct ImplSharedRing{
   }
 };
 
+struct Timings{
+  double copy_to_shmbuf;
+  double rank_reduce;
+  double ring_reduce;
+  double copy_from_shmbuf;
+  double total;
+  int count;
+
+  Timings(){
+    reset();
+  }
+  
+  void reset(){
+    total = copy_to_shmbuf = rank_reduce = ring_reduce = copy_from_shmbuf = 0;
+    count = 0;
+  }
+  std::string report(){
+    std::stringstream ss;
+    ss << " count: " << count << " avg times copy_to_shmbuf: " << copy_to_shmbuf/count << "us, rank_reduce: " << rank_reduce/count << "us, ring_reduce: " << ring_reduce/count
+       << "us, copy_from_shmbuf: " << copy_from_shmbuf/count << "us, total: " << total/count << "us";
+    return ss.str();
+  }
+};
+    
+
+template<typename T>
+void GlobalSumVectorRingSharedImplTimed(Timings &t, CartesianCommunicator &gcomm, T* data, size_t len, bool on_device, Grid_MPI_Comm comm, bool allow_acc_aware_mpi){
+  t.total -= usecond();
+  t.count++;
+  size_t bytes = len*sizeof(T);
+
+  //Local copy
+  t.copy_to_shmbuf -= usecond();
+  gcomm.ShmBufferFreeAll();
+  T* shm_data = (T*)gcomm.ShmBufferMalloc(bytes);    
+  if(on_device){
+    acceleratorCopyDeviceToDevice(data, shm_data, bytes);
+  }else{
+    acceleratorCopyToDevice(data, shm_data, bytes);
+  }
+  t.copy_to_shmbuf += usecond();
+  
+  gcomm.ShmBarrier();
+
+  t.rank_reduce -= usecond();
+  size_t block_size =  (len + gcomm.ShmSize-1)/gcomm.ShmSize;
+  size_t rank_off = block_size * gcomm.ShmRank;
+  size_t rank_size = gcomm.ShmRank == gcomm.ShmSize - 1 ? len - block_size * gcomm.ShmRank : block_size;
+  
+  T* rank_reduce_ptr = shm_data + rank_off;
+    
+  //Everybody reduce their independent segment in parallel
+  for(int r=0;r<gcomm.ShmSize;r++){
+    if(r == gcomm.ShmRank)
+      continue;
+    
+    T* from = (T*)gcomm.ShmCommBufs[r] + rank_off;
+    
+    accelerator_for(i, rank_size, 1, {
+	rank_reduce_ptr[i] = rank_reduce_ptr[i] + from[i];
+      });
+  }
+  t.rank_reduce += usecond();
+  
+  gcomm.ShmBarrier();
+
+  t.ring_reduce -= usecond();
+  gcomm.GlobalSumVectorRing(rank_reduce_ptr, rank_size, true, gcomm.ShmCommRanks[gcomm.ShmRank], allow_acc_aware_mpi);
+  t.ring_reduce += usecond();
+  
+  gcomm.ShmBarrier();
+
+  t.copy_from_shmbuf -= usecond();
+  //Copy back segments
+  for(int r=0;r<gcomm.ShmSize;r++){
+    size_t r_off = block_size * r;
+    T *to = data + r_off;
+    T* from = (T*)gcomm.ShmCommBufs[r] + r_off;
+    size_t r_size = r == gcomm.ShmSize - 1 ? len - block_size * r : block_size;
+    if(on_device) acceleratorCopyDeviceToDevice(from, to, r_size*sizeof(T));
+    else acceleratorCopyFromDevice(from, to, r_size*sizeof(T));
+  }
+  t.copy_from_shmbuf += usecond();
+  
+  gcomm.ShmBarrier();
+  gcomm.ShmBufferFreeAll();
+  t.total += usecond();
+}
+
+
+
 void benchmarkAllReduceSharedRing(const std::vector<int> &sizes_MB, CartesianCommunicator &comm, bool device_ptr, bool allow_acc_aware_mpi, const int nrpt){
   benchmarkAllReduce<ImplSharedRing>(sizes_MB, comm, device_ptr, allow_acc_aware_mpi, nrpt);
+
+  //Timing breakdown for 150MB target
+  size_t bytes = 150 * 1024*1024;
+  size_t ndouble = bytes / sizeof(double);
+  
+  double* buf_new;
+  if(device_ptr)
+    buf_new = (double*)acceleratorAllocDevice(bytes);
+  else
+    buf_new = (double*)malloc(bytes);
+
+  Timings t;
+  for(int n=0;n<nrpt;n++){
+    GlobalSumVectorRingSharedImplTimed(t, comm, buf_new, ndouble, device_ptr, comm.communicator, allow_acc_aware_mpi);
+  }
+  
+  if(device_ptr)
+    acceleratorFreeDevice(buf_new);
+  else free(buf_new);
+    
+  std::cout << "Timings for 150MB target::  " << t.report() << std::endl;
 };
 
 
