@@ -1100,9 +1100,10 @@ SharedMemory::~SharedMemory()
   if ( !MPI_is_finalised ) { 
     MPI_Comm_free(&ShmComm);
 
-    for(int r=0;r<ShmSize;r++){ 
-      MPI_Comm_free(&ShmCommRanks[r]);
-    }
+    if(ShmCommRanks.size())
+      for(int r=0;r<ShmSize;r++){ 
+	MPI_Comm_free(&ShmCommRanks[r]);
+      }
 
   }
 };
