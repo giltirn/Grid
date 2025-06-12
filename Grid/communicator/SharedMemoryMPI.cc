@@ -1014,8 +1014,12 @@ void SharedMemory::SetCommunicator(Grid_MPI_Comm comm)
       
       MPI_Group rankr_group;
       assert( MPI_Group_incl(comm_group, rankrs.size(), rankrs.data(), &rankr_group) == MPI_SUCCESS );
-      
+
+      std::cout << "Creating ShmCommRanks " << r << std::endl;
       assert( MPI_Comm_create(comm, rankr_group, &ShmCommRanks[r]) == MPI_SUCCESS );
+
+      //While every process in the communicator needs to call MPI_Comm_create, for those ranks not in the new communicator, the result will be MPI_COMM_NULL; do not call MPI_Comm_free on these or it will crash!
+      if(r != ShmRank) assert(ShmCommRanks[r] == MPI_COMM_NULL);
       
       assert( MPI_Group_free(&comm_group) == MPI_SUCCESS );
       assert( MPI_Group_free(&rankr_group) == MPI_SUCCESS );
@@ -1098,13 +1102,10 @@ SharedMemory::~SharedMemory()
 {
   int MPI_is_finalised;  MPI_Finalized(&MPI_is_finalised);
   if ( !MPI_is_finalised ) { 
-    MPI_Comm_free(&ShmComm);
-
     if(ShmCommRanks.size())
-      for(int r=0;r<ShmSize;r++){ 
-	MPI_Comm_free(&ShmCommRanks[r]);
-      }
-
+      MPI_Comm_free(&ShmCommRanks[ShmRank]); //others will be MPI_COMM_NULL and should not be freed!
+    
+    MPI_Comm_free(&ShmComm);
   }
 };
 
